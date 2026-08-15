@@ -32,23 +32,27 @@
 
 ## Dependency DAG and checkpoint map
 
-```text
-T1 bootstrap
-  ├── T2 domain and ports
-  │     ├── T3 SQLite schema/repository
-  │     ├── T4 Betterleaks scanner
-  │     └── T6 workspace identity
-  ├── T5 application mutation/trust/idempotency (T2,T3,T4; KeyDeriver port from T2)
-  ├── T7 projection/outbox worker (T2,T3,T4,T5; replaceable ports/fakes from T2)
-  ├── T8 retrieval/usage/pruning (T3,T5; KeyDeriver port from T2)
-  ├── T9 security/keys/auth/managed filesystem (T2,T3,T4)
-  ├── T10 HTTP/OpenAPI/CLI/MCP surfaces (T5,T6,T8,T9)
-  ├── T11 SessionStart/Codex hook (T5,T6,T8,T9,T10)
-  ├── T12 review/import/export/skill promotion (T5,T6,T7,T8,T9,T10)
-  ├── T13 purge/backups/migrations/recovery/rule activation/maintenance lock (T2,T3,T4,T5,T7,T9)
-  ├── T14 setup/status/doctor/platform lifecycle (T9,T10,T13)
-  └── T15 integrated acceptance and final receipt (T1–T14)
-```
+The table below is the authoritative direct-edge DAG. Every task header repeats
+the same dependency set; T15 validates exact equality (normalizing `none` and an
+empty set to the same value) and acyclicity before any checkpoint is accepted.
+
+| Task | Direct dependencies |
+| --- | --- |
+| T1 | none |
+| T2 | T1 |
+| T3 | T2 |
+| T4 | T2 |
+| T5 | T2, T3, T4 |
+| T6 | T2, T3, T5 |
+| T7 | T2, T3, T4, T5 |
+| T8 | T3, T5 |
+| T9 | T2, T3, T4 |
+| T10 | T5, T6, T8, T9 |
+| T11 | T5, T6, T8, T9, T10 |
+| T12 | T5, T6, T7, T8, T9, T10 |
+| T13 | T2, T3, T4, T5, T7, T9, T10 |
+| T14 | T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13 |
+| T15 | T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14 |
 
 T2 owns the replaceable `KeyDeriver`, `ManagedFileStore`, and `ActivationJournal`
 ports. `ManagedFileStore` covers mode-checked temporary creation, no-follow
@@ -82,7 +86,7 @@ The reconciler may split a task into smaller packets, but may not change these i
 
 | Area | Owner boundary | Files introduced or owned |
 | --- | --- | --- |
-| Bootstrap | T1 | `go.mod`, `go.sum`, `cmd/talaria-mem/main.go`, `.github/workflows/ci.yml`, `Makefile`, `.gitignore`, `internal/testutil/` |
+| Bootstrap | T1 | `go.mod`, `go.sum`, stable `cmd/talaria-mem/main.go` `Run` shell, `.github/workflows/ci.yml`, `Makefile`, `.gitignore`, `internal/testutil/` |
 | Domain/ports | T2 | `internal/domain/`, `internal/ports/`, including `KeyDeriver`, `ManagedFileStore`, and `ActivationJournal` ports |
 | Canonical SQL | T3 | `db/migrations/`, `db/queries/`, `db/sqlc.yaml`, `internal/adapters/sqlite/` |
 | Scanner | T4 | `internal/scanner/`, `testdata/secrets/` |
@@ -94,17 +98,17 @@ The reconciler may split a task into smaller packets, but may not change these i
 | HTTP/MCP/CLI | T10 | `api/openapi/`, generated HTTP contract, `internal/adapters/http/`, `internal/adapters/mcp/`, CLI routing and contracts; T13 owns the scanner rule-upgrade command |
 | Codex hook | T11 | `internal/adapters/codex/`, `packaging/codex/` |
 | Import/export/promotion | T12 | `internal/application/import_export.go`, `internal/application/promotion.go`, matching CLI/MCP tests and fixtures |
-| Maintenance | T13 | `internal/maintenance/`, `internal/cli/commands/scanner.go`, backup/purge/migration/rule-upgrade fixtures |
-| Lifecycle | T14 | `internal/lifecycle/`, `packaging/macos/`, `packaging/linux/`, setup/doctor fixtures |
+| Maintenance | T13 | `internal/maintenance/`, `internal/cli/commands/scanner.go`, `internal/cli/commands/backup.go` (reconcile implementation), backup/purge/migration/rule-upgrade fixtures |
+| Lifecycle | T14 | `internal/lifecycle/`, `internal/runtime/composition.go`, `internal/runtime/composition_test.go`, final wiring in `cmd/talaria-mem/main.go`, `packaging/macos/`, `packaging/linux/`, setup/doctor fixtures |
 | Acceptance | T15 | `test/acceptance/`, `test/e2e/`, `docs/superpowers/receipts/`, final CI gates |
 
-Shared files are owned by the reconciler. Developers must not concurrently edit `go.mod`, migration ordering, generated OpenAPI output, CI, or shared test helpers; the reconciler assigns those changes explicitly.
+Shared files are owned by the reconciler. Developers must not concurrently edit `go.mod`, migration ordering, generated OpenAPI output, CI, shared test helpers, or the composition root. T1 creates the stable `Run` shell; T14 owns the final composition patch and wiring tests in the same `cmd/talaria-mem/main.go` file through an explicit reconciler packet.
 
 ---
 
 ### Task 1: Bootstrap the Go module and deterministic test harness
 
-**Dependencies:** none. **Checkpoint:** CP1. **Gate coverage:** G00, G30.
+**Dependencies:** none. **Checkpoint:** CP1. **Gate coverage:** G00, G28, G30.
 
 **Files:**
 
@@ -114,6 +118,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 **Interfaces:**
 
 - Produce `cmd/talaria-mem` with `main()` delegating to a testable `Run(ctx, args, stdout, stderr) error`.
+- Keep the bootstrap `Run` shell free of provider construction; T14 owns final one-binary composition and replaces the shell's dependency wiring through the reconciler-owned composition packet.
 - Produce `testutil.FixedClock` implementing `Now() time.Time` and `Advance(time.Duration)`.
 - Produce Make targets `test`, `test-race`, `vet`, `generate`, `openapi-lint`, and `check` that never leave binaries in source directories.
 
@@ -127,7 +132,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 ### Task 2: Define domain contracts, normalization, trust, lifecycle, and ports
 
-**Dependencies:** T1. **Checkpoint:** CP1. **Gate coverage:** G04, G08, G09, G10, G11, G12, G13, G18, G20, G21.
+**Dependencies:** T1. **Checkpoint:** CP1. **Gate coverage:** G04, G08, G09, G10, G11, G12, G13, G18, G19, G20, G21, G30.
 
 **Files:**
 
@@ -142,18 +147,19 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Define `NormalizeV1(kind, title, content string, tags []string) (string, error)` for valid UTF-8, NFC, CRLF/CR-to-LF conversion, stable sorted canonical tags, and exact duplicate comparison.
 - Define `MemoryRepository`, `Scanner`, `Projector`, and `Clock` ports without interfaces for non-replaceable helpers. Define `KeyDeriver` for versioned, domain-separated derivation of session, idempotency, and backup-manifest keys; callers receive derived bytes only.
 - Define replaceable `ManagedFileStore` operations for mode-0600 temporary files, no-follow same-directory replacement, file/parent fsync, stale-temp cleanup, and safe fingerprints. Define replaceable `ActivationJournal` operations for durable rule-generation phase transitions, revision watermarks, candidate fingerprints, last processed IDs, safe errors, and readiness blockers; journal records contain no content.
+- Define the canonical FTS contract constant `FTS5Tokenizer = "unicode61 remove_diacritics 2"` and require secure-delete for the FTS5 table; T3 owns the schema, while T8 and T14 consume this contract without duplicating it.
 - Define exact shared limits: at most eight concurrent reads, one writer, a two-second FTS deadline, and a five-second mutation deadline excluding explicit maintenance operations.
-- Define typed errors for validation, not-found, revision conflict, idempotency conflict, secret refusal, quarantine, timeout, unavailable, and maintenance lock failures.
+- Define typed errors for validation, not-found, revision conflict, idempotency conflict, secret refusal, quarantine, timeout, unavailable, storage-full, and maintenance lock failures. `SQLITE_FULL` maps to `storage-full` as an ordinary safe write failure: return a stable diagnostic, perform no content output or partial mutation, and never retry indefinitely.
 
-- [ ] Write table tests for every enum, failure-only `ResolutionState` validation and transition preconditions, byte limit, exact concurrency/deadline limit, normalization case, duplicate-key rejection contract, `KeyDeriver` purpose separation, `ManagedFileStore` no-follow/fsync contract, `ActivationJournal` phase contract, and error classification.
-- [ ] RED: run `go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal' -count=1`; expected exit `1`; negative fixture `testdata/domain/missing-port-contract.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-red.txt`.
+- [ ] Write table tests for every enum, failure-only `ResolutionState` validation and transition preconditions, byte limit, exact concurrency/deadline limit, normalization case, duplicate-key rejection contract, `KeyDeriver` purpose separation, `ManagedFileStore` no-follow/fsync contract, `ActivationJournal` phase contract, canonical `FTSConfig`/Unicode-diacritic behavior, typed `SQLITE_FULL` mapping, and error classification.
+- [ ] RED: run `go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1`; expected exit `1`; negative fixture `testdata/domain/missing-port-contract.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-red.txt`.
 - [ ] Implement the smallest immutable value types and ports.
-- [ ] GREEN: run `go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal' -count=1 && go vet ./internal/domain ./internal/ports`; expected exit `0`; negative fixture `testdata/domain/unsafe-follow-or-invalid-phase.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-green.txt`.
+- [ ] GREEN: run `go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports`; expected exit `0`; negative fixture `testdata/domain/unsafe-follow-or-invalid-phase.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-green.txt`.
 - [ ] Commit `feat: define memory and workspace domain contracts`.
 
 ### Task 3: Build SQLite schema, migrations, FTS, repository, and transaction primitives
 
-**Dependencies:** T2. **Checkpoint:** CP1. **Gate coverage:** G01, G10, G11, G12, G19, G20, G21, G30.
+**Dependencies:** T2. **Checkpoint:** CP1. **Gate coverage:** G01, G10, G11, G12, G19, G20, G21, G24, G25, G30.
 
 **Files:**
 
@@ -163,20 +169,20 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 **Interfaces:**
 
-- Create/open database with WAL, foreign keys, `secure_delete=ON`, incremental-vacuum capability, and FTS5 `secure-delete=1`.
+- Create/open database with WAL, foreign keys, `secure_delete=ON`, incremental-vacuum capability, and a normal-content FTS5 table whose exact tokenizer is `tokenize='unicode61 remove_diacritics 2'` and whose FTS5 `secure-delete=1` option is enabled. Any schema/rebuild/migration drift from this contract is a hard failure.
 - Implement exactly the logical tables in specification section 8, including workspaces/bindings/redirects/aliases, memories/revisions, failure-only `resolution_state` constraints, `memory_fts`, usage, outbox, projection state, promotions, deletion receipts, purge operations, managed backups, idempotency, migration journal, and a non-content rule-upgrade activation journal containing active/candidate generations, phase, watermark, fingerprint, and safe error metadata.
-- Implement repository methods `CreateRevision`, `MoveCurrentRevision`, `ReplaceFTSRow`, `AppendOutbox`, `ReadCurrent`, `RebuildFTS`, and `WithTx` with no independent adapter mutation path.
+- Implement repository methods `CreateRevision`, `MoveCurrentRevision`, `ReplaceFTSRow`, `AppendOutbox`, `ReadCurrent`, `RebuildFTS`, and `WithTx` with no independent adapter mutation path. Map modernc SQLite `SQLITE_FULL` to the typed storage-full error, commit no partial revision/FTS/outbox change, emit no content, and return without an unbounded retry loop.
 
-- [ ] Write tests for schema creation, restart persistence, failure `resolution_state` constraints, FTS eligibility predicate, transaction rollback, foreign keys, duplicate IDs, and injected SQL failure.
-- [ ] RED: run `go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestActivationJournal' -count=1`; expected exit `1`; negative fixture `testdata/sqlite/invalid-rule-generation-transition.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-red.txt`.
+- [ ] Write tests for schema creation, restart persistence, failure `resolution_state` constraints, exact FTS5 tokenizer/secure-delete options, NFC/Unicode and diacritic retrieval fixtures, FTS eligibility predicate, transaction rollback, foreign keys, duplicate IDs, injected SQL failure, and deterministic `SQLITE_FULL` ordinary-write failure/no-retry behavior.
+- [ ] RED: run `go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1`; expected exit `1`; negative fixture `testdata/sqlite/invalid-rule-generation-transition.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-red.txt`.
 - [ ] RED: write migrations and sqlc queries, then run `go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1` against temporary databases; expected exit `1`; negative fixture `testdata/sqlite/partial-migration-v4.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t3-migration-red.txt`.
-- [ ] GREEN: generate sqlc output and run `go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite`; expected exit `0`; negative fixture `testdata/sqlite/fts-eligibility-drift.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-green.txt`.
+- [ ] GREEN: generate sqlc output and run `go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite`; expected exit `0`; negative fixture `testdata/sqlite/fts-eligibility-drift.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-green.txt`.
 - [ ] Verify `memory_fts` contains exactly one current active/verified/non-quarantined row and no other row.
 - [ ] Commit `feat: add sqlite canonical storage and fts schema`.
 
 ### Task 4: Embed Betterleaks behind a fail-closed scanner port
 
-**Dependencies:** T2. **Checkpoint:** CP1. **Gate coverage:** G15, G16, G30.
+**Dependencies:** T2. **Checkpoint:** CP1. **Gate coverage:** G14, G15, G16, G30.
 
 **Files:**
 
@@ -198,11 +204,11 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 ### Task 5: Implement atomic application mutations, trust transitions, review queue, and idempotency
 
-**Dependencies:** T2, T3, T4. **Checkpoint:** CP2. **Gate coverage:** G04, G05, G06, G07, G10, G11, G12, G15, G19, G30.
+**Dependencies:** T2, T3, T4. **Checkpoint:** CP2. **Gate coverage:** G01, G04, G05, G06, G07, G10, G11, G12, G14, G15, G19, G20, G23, G30.
 
 **Files:**
 
-- Create: `internal/application/memory_service.go`, `internal/application/trust.go`, `internal/application/idempotency.go`, `internal/application/review.go`, `internal/application/confirm.go`, `internal/application/forget.go`, `internal/application/restore.go`.
+- Create: `internal/application/memory_service.go`, `internal/application/trust.go`, `internal/application/idempotency.go`, `internal/application/review.go`, `internal/application/confirm.go`, `internal/application/forget.go`, `internal/application/restore.go`, `internal/application/content_output.go`, `internal/application/quarantine.go`.
 - Test: matching application tests and fixtures under `testdata/application/`.
 
 **Interfaces:**
@@ -212,13 +218,14 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Enforce failure-only `resolution_state`: default `open`, expected-revision checked transitions to `resolved`, rejection for all other kinds, and inclusion of open failures in SessionStart/pruning protection.
 - Enforce `Pin` reserves atomically in the mutation transaction: no more than five pinned standing instructions or 8 KiB of pinned standing-instruction content in either workspace or user-global scope; reject item and byte overflow, including concurrent pin races. T11 retains readiness-false detection for inconsistent legacy state.
 - Perform scan, immutable revision/tombstone, current pointer, FTS, and outbox updates in one transaction; failed scan/conflict performs none.
+- Own `ContentOutputGuard` and `ScanAndQuarantine` as the read-time boundary. Every content-output call supplies route, workspace, item, current revision, and rule generation. A clean scan returns bounded content; a finding atomically marks the exact revision quarantined, removes its FTS row, appends outbox intent, and blocks readiness/projection until scrub/rebuild. Scanner error, timeout, panic, cancellation, or uncertainty returns no content and performs no mutation. The operation is idempotent and race-safe across concurrent revision updates and restart/failpoint recovery; no route may implement a second guard.
 - Store only HMAC-derived session identifiers and domain-separated idempotency digests; never store raw session IDs, query text, content, or secret fragments.
 - Retain each idempotency key, operation, digest, target IDs, and safe result for exactly 24 hours; cleanup after downtime is bounded and deterministic, and replay/conflict behavior is durable across restart.
 
-- [ ] Write tests for each actor/operation matrix cell, failure-state transition/rejection, exact-revision race, all-or-nothing scanner refusal, review pagination, idempotency replay/conflict/24-hour expiry/restart cleanup, tombstone restore, and safe metadata responses.
-- [ ] RED: run `go test ./internal/application -run 'TestTrustMatrix|TestResolutionState|TestIdempotencyRetention|TestAtomicMutation|TestPinReserve' -count=1`; expected exit `1`; negative fixture `testdata/application/concurrent-pin-byte-overflow.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t5-application-red.txt`.
+- [ ] Write tests for each actor/operation matrix cell, failure-state transition/rejection, exact-revision race, all-or-nothing scanner refusal, review pagination, idempotency replay/conflict/24-hour expiry/restart cleanup, tombstone restore, safe metadata responses, and `ContentOutputGuard`/`ScanAndQuarantine` route-wide finding/error behavior. Include concurrent update, projection scrub, restart, and failpoint fixtures proving atomic quarantine/FTS removal/outbox append/readiness blocking.
+- [ ] RED: run `go test ./internal/application -run 'TestTrustMatrix|TestResolutionState|TestIdempotencyRetention|TestAtomicMutation|TestPinReserve|TestContentOutputGuard|TestScanAndQuarantine|TestReadFindingQuarantine' -count=1`; expected exit `1`; negative fixture `testdata/application/concurrent-pin-byte-overflow.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t5-application-red.txt`.
 - [ ] Implement application orchestration using the SQLite and scanner ports.
-- [ ] GREEN: run `go test ./internal/application -run 'TestTrustMatrix|TestResolutionState|TestIdempotencyRetention|TestAtomicMutation|TestPinReserve' -count=1 && go test -race ./internal/application`; expected exit `0`; negative fixture `testdata/application/concurrent-pin-item-overflow.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t5-application-green.txt`.
+- [ ] GREEN: run `go test ./internal/application -run 'TestTrustMatrix|TestResolutionState|TestIdempotencyRetention|TestAtomicMutation|TestPinReserve|TestContentOutputGuard|TestScanAndQuarantine|TestReadFindingQuarantine|TestScannerFailureNoMutation' -count=1 && go test -race ./internal/application`; expected exit `0`; negative fixture `testdata/application/read-scanner-failure-no-mutation.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t5-application-green.txt`.
 - [ ] Commit `feat: implement atomic memory application services`.
 
 ### Task 6: Implement workspace inference, binding, normalization, merge, aliases, and redirects
@@ -245,7 +252,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 ### Task 7: Implement deterministic Markdown projection and outbox worker
 
-**Dependencies:** T2, T3, T4, T5. **Checkpoint:** CP2. **Gate coverage:** G10, G13, G14, G15, G18, G30.
+**Dependencies:** T2, T3, T4, T5. **Checkpoint:** CP2. **Gate coverage:** G10, G12, G13, G14, G15, G18, G23, G30.
 
 **Files:**
 
@@ -254,20 +261,20 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 **Interfaces:**
 
-- Render complete active/verified/non-quarantined scope content in versioned UTF-8, LF, stable memory-ID order with machine header and fingerprint. Scan every content field with the T4 `Scanner` before creating or replacing a projection file; scanner failure or uncertainty writes no content.
+- Render complete active/verified/non-quarantined scope content in versioned UTF-8, LF, stable memory-ID order with machine header and fingerprint. Call T5 `ContentOutputGuard`/`ScanAndQuarantine` for every content-bearing projection output before creating or replacing a projection file; clean content may proceed, findings are atomically quarantined with FTS removal/outbox intent, and scanner failure or uncertainty writes no content or mutation.
 - Implement bounded idempotent outbox grouping by scope and revision watermark.
 - Consume the T2 `ManagedFileStore` port for mode-0600 temp, same-directory no-follow replacement, file fsync, parent fsync, and fingerprint verification; report projection-rebuild phases through the T2 `ActivationJournal`; acknowledge outbox only after all checks succeed. T7 uses compiling filesystem/scanner/journal fakes and does not import T9 concrete filesystem code.
 - Handle crash after rename, stale temp cleanup, drifted state, quarantine rebuild, and explicit fingerprint-bound `projection rebuild --force`.
 
-- [ ] Write failpoint tests for create, file fsync, rename, directory fsync, verification, acknowledgement, stale temp, drift, and scanner rebuild.
-- [ ] RED: run `go test ./internal/projection -run 'TestProjectionFailpoints|TestScanBeforeWrite|TestOutboxAck' -count=1`; expected exit `1`; negative fixture `testdata/projection/rename-before-fsync.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t7-projection-red.txt`.
+- [ ] Write failpoint tests for create, file fsync, rename, directory fsync, verification, acknowledgement, stale temp, drift, scanner rebuild, T5 guard invocation, finding quarantine, concurrent revision update, restart recovery, and projection scrub/readiness blocking.
+- [ ] RED: run `go test ./internal/projection -run 'TestProjectionFailpoints|TestScanBeforeWrite|TestOutboxAck|TestContentOutputGuard|TestReadFindingQuarantine' -count=1`; expected exit `1`; negative fixture `testdata/projection/rename-before-fsync.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t7-projection-red.txt`.
 - [ ] Implement deterministic renderer and worker; inject filesystem and failpoint ports.
-- [ ] GREEN: run `go test ./internal/projection -run 'TestProjectionFailpoints|TestScanBeforeWrite|TestOutboxAck|TestRestartReplay' -count=1 && go test -race ./internal/projection`; expected exit `0`; negative fixture `testdata/projection/symlink-target.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t7-projection-green.txt`.
+- [ ] GREEN: run `go test ./internal/projection -run 'TestProjectionFailpoints|TestScanBeforeWrite|TestOutboxAck|TestRestartReplay|TestContentOutputGuard|TestReadFindingQuarantine|TestScannerFailureNoMutation' -count=1 && go test -race ./internal/projection`; expected exit `0`; negative fixture `testdata/projection/symlink-target.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t7-projection-green.txt`.
 - [ ] Commit `feat: add deterministic outbox markdown projection`.
 
 ### Task 8: Implement FTS retrieval, scoring, usage accounting, and pruning recommendations
 
-**Dependencies:** T3, T5. **Checkpoint:** CP2. **Gate coverage:** G01, G02, G20, G21, G22, G30.
+**Dependencies:** T3, T5. **Checkpoint:** CP2. **Gate coverage:** G01, G02, G12, G20, G21, G22, G30.
 
 **Files:**
 
@@ -277,19 +284,20 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 **Interfaces:**
 
 - Build parameter-bound FTS5 MATCH expressions from NFC literal terms only; never accept raw FTS operators or SQL fragments.
+- Consume T2's exact `FTS5Tokenizer = "unicode61 remove_diacritics 2"` contract and test Unicode/diacritic-equivalent terms, schema rebuild, and migration preservation; retrieval must never silently fall back to another tokenizer.
 - Implement raw BM25 weights `(5.0, 1.0, 2.0, 0.0)`, normalized relevance, freshness, usage cap, combined cap, deterministic tie-breakers, and explainable score components using injected UTC clock and float64.
 - Record paired opportunities and at-most-once-per-consumer-session hits through the T2 `KeyDeriver` port; maintain 90-day detailed buckets, lifetime counts, bounded cleanup, and protect failure memories whose `resolution_state` is `open`.
 - Implement the exact Wilson upper-bound formula with `z = 1.64485362695`, 30-day/20-opportunity grace, default 5% threshold, protection precedence, `--include-verified`, and forget-only apply.
 
-- [ ] Write tests for lexical miss rescue prohibition, score math, caps, tie ordering, injected time, session deduplication, opportunity invariant, 90-day retention, Wilson fixtures, protection overrides, and explain output.
-- [ ] RED: run `go test ./internal/retrieval -run 'TestSearch|TestUsage|TestPruning|TestResolutionProtection' -count=1`; expected exit `1`; negative fixture `testdata/retrieval/open-failure-pruning-protection.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t8-retrieval-red.txt`.
+- [ ] Write tests for lexical miss rescue prohibition, score math, caps, tie ordering, injected time, session deduplication, opportunity invariant, 90-day retention, Wilson fixtures, protection overrides, explain output, and Unicode/diacritic retrieval plus FTS rebuild preservation.
+- [ ] RED: run `go test ./internal/retrieval -run 'TestSearch|TestUsage|TestPruning|TestResolutionProtection|TestUnicodeDiacritic|TestFTSRebuild' -count=1`; expected exit `1`; negative fixture `testdata/retrieval/open-failure-pruning-protection.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t8-retrieval-red.txt`.
 - [ ] Implement retrieval and pruning services against the canonical repository.
-- [ ] GREEN: run `go test ./internal/retrieval -run 'TestSearch|TestUsage|TestPruning|TestResolutionProtection' -count=1 && go test -race ./internal/retrieval`; expected exit `0`; negative fixture `testdata/retrieval/session-dedup-restart.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t8-retrieval-green.txt`.
+- [ ] GREEN: run `go test ./internal/retrieval -run 'TestSearch|TestUsage|TestPruning|TestResolutionProtection|TestUnicodeDiacritic|TestFTSRebuild' -count=1 && go test -race ./internal/retrieval`; expected exit `0`; negative fixture `testdata/retrieval/session-dedup-restart.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t8-retrieval-green.txt`.
 - [ ] Commit `feat: add lexical retrieval usage and pruning scores`.
 
 ### Task 9: Implement root keys, HMAC subkeys, bearer authentication, and managed filesystem
 
-**Dependencies:** T2, T3, T4. **Checkpoint:** CP3. **Gate coverage:** G15, G16, G17, G18, G19, G26, G30.
+**Dependencies:** T2, T3, T4. **Checkpoint:** CP3. **Gate coverage:** G15, G16, G17, G18, G19, G20, G23, G24, G26, G30.
 
 **Files:**
 
@@ -312,11 +320,11 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 ### Task 10: Implement OpenAPI, HTTP control service, MCP, and CLI contract surfaces
 
-**Dependencies:** T5, T6, T8, T9. **Checkpoint:** CP3. **Gate coverage:** G04, G05, G06, G08, G09, G15, G17, G20, G30.
+**Dependencies:** T5, T6, T8, T9. **Checkpoint:** CP3. **Gate coverage:** G04, G05, G06, G08, G09, G14, G15, G17, G20, G28, G30.
 
 **Files:**
 
-- Create: `api/openapi/talaria.yaml`, `api/openapi/vacuum.yaml`, `api/openapi/README.md`, `internal/adapters/http/server.go`, `internal/adapters/http/errors.go`, `internal/adapters/http/middleware.go`, generated `internal/adapters/http/openapi.gen.go`, `internal/adapters/mcp/server.go`, `internal/cli/root.go`, `internal/cli/commands/*.go`.
+- Create: `api/openapi/talaria.yaml`, `api/openapi/vacuum.yaml`, `api/openapi/README.md`, `internal/adapters/http/server.go`, `internal/adapters/http/errors.go`, `internal/adapters/http/middleware.go`, generated `internal/adapters/http/openapi.gen.go`, `internal/adapters/mcp/server.go`, `internal/cli/root.go`, and `internal/cli/commands/*.go` except T13-owned `scanner.go` and `backup.go`.
 - Test: HTTP contract tests, MCP tool tests, CLI command tests, and `api/openapi/*_test.go` where generated contracts permit.
 
 **Interfaces:**
@@ -325,16 +333,18 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Generate the HTTP server/client types only after Vacuum lint/bundle; never hand-edit generated output.
 - Implement MCP Streamable HTTP with `memory_search`, `memory_get`, `memory_create`, `memory_update`, `memory_pin`, `memory_forget`, and `memory_explain`.
 - Implement stable CLI exit codes 0–7, machine JSON on stdout and human output on stderr, random idempotency keys by default, and no query/content logging.
+- Route every HTTP, MCP, and CLI content-output path through T5 `ContentOutputGuard` before serialization or projection handoff. A clean scan is the only path that returns content; a finding invokes T5 `ScanAndQuarantine` atomically and blocks readiness/projection, while scanner error or uncertainty returns no content and performs no mutation. T10 exposes the stable registration boundary for T13's maintenance commands but does not own their implementation.
 
-- [ ] Write failing contract tests for route/method/content type/auth/error/size limits, MCP schema and workspace scope, CLI exit codes and machine output.
+- [ ] Write failing contract tests for route/method/content type/auth/error/size limits, MCP schema and workspace scope, CLI exit codes and machine output, and every HTTP/MCP/CLI content-output guard/finding/error route.
 - [ ] RED: run `vacuum lint api/openapi/talaria.yaml api/openapi/vacuum.yaml && vacuum bundle api/openapi/talaria.yaml`; expected exit `1`; negative fixture `testdata/surfaces/invalid-origin.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t10-surfaces-red.txt`.
+- [ ] RED: run `go test ./internal/adapters/http ./internal/adapters/mcp ./internal/cli -run 'TestContract|TestMCP|TestCLI|TestContentOutputGuard|TestRouteQuarantine|TestScannerFailureNoMutation' -count=1`; expected exit `1`; negative fixture `testdata/surfaces/missing-handler-or-invalid-mcp-schema.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t10-contract-red.txt`.
 - [ ] Implement OpenAPI source, bundle/lint, generated code, HTTP adapters, MCP server, and Cobra command routing.
-- [ ] GREEN: run `vacuum lint api/openapi/talaria.yaml api/openapi/vacuum.yaml && vacuum bundle api/openapi/talaria.yaml && go generate ./... && git diff --exit-code -- internal/adapters/http/openapi.gen.go && go test ./internal/adapters/http ./internal/adapters/mcp ./internal/cli -run 'TestContract|TestMCP|TestCLI' -count=1 && go vet ./... && go test -race ./internal/adapters/http ./internal/adapters/mcp ./internal/cli`; expected exit `0`; negative fixture `testdata/surfaces/duplicate-json-key.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t10-surfaces-green.txt`.
+- [ ] GREEN: run `vacuum lint api/openapi/talaria.yaml api/openapi/vacuum.yaml && vacuum bundle api/openapi/talaria.yaml && go generate ./... && git diff --exit-code -- internal/adapters/http/openapi.gen.go && go test ./internal/adapters/http ./internal/adapters/mcp ./internal/cli -run 'TestContract|TestMCP|TestCLI|TestContentOutputGuard|TestRouteQuarantine|TestScannerFailureNoMutation' -count=1 && go vet ./... && go test -race ./internal/adapters/http ./internal/adapters/mcp ./internal/cli`; expected exit `0`; negative fixture `testdata/surfaces/duplicate-json-key.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t10-surfaces-green.txt`.
 - [ ] Commit `feat: expose authenticated http mcp and cli contracts`.
 
 ### Task 11: Implement Codex SessionStart and bounded context selection
 
-**Dependencies:** T5, T6, T8, T9, T10. **Checkpoint:** CP3. **Gate coverage:** G02, G03, G08, G17, G20, G30.
+**Dependencies:** T5, T6, T8, T9, T10. **Checkpoint:** CP3. **Gate coverage:** G02, G03, G04, G06, G08, G14, G17, G20, G30.
 
 **Files:**
 
@@ -347,17 +357,18 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Resolve persisted workspace binding only; never accept event workspace override or implicit other-workspace retrieval.
 - Select active/verified/non-quarantined items in pinned standing, pinned, unresolved failure, then score tiers; workspace precedes global after exact normalization-v1 deduplication.
 - Enforce five-item/8 KiB pin reserves per scope, 20 whole-item/32 KiB response, 8 KiB item content, omitted-count and safe receipt, resolved workspace ID, untrusted-reference delimiters, and rescan-before-serialization fail-closed behavior. Detect any inconsistent legacy pin state and keep readiness false rather than silently omitting a pinned instruction; new pin writes are rejected atomically by T5.
+- Route every SessionStart content output through T5 `ContentOutputGuard`; a finding calls `ScanAndQuarantine` atomically (quarantine revision, remove FTS, append outbox intent, block readiness/projection), while scanner error or uncertainty returns no content and performs no mutation. Include concurrent update, restart, and failpoint evidence for the read-time boundary.
 - Install only SessionStart; hook reports actionable missing-daemon error and never downloads or replaces binaries.
 
-- [ ] Write fixture tests for every priority/tie/dedup/reserve/bound/scanner failure/transcript canary path.
+- [ ] Write fixture tests for every priority/tie/dedup/reserve/bound/scanner failure/transcript canary path, plus read-finding quarantine and scanner-failure/no-mutation route cases.
 - [ ] RED: run `go test ./internal/adapters/codex -run 'TestSessionStart|TestTranscriptCanary|TestSelection' -count=1`; expected exit `1`; negative fixture `testdata/codex/transcript-open-attempt.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t11-session-red.txt`.
 - [ ] Implement decoder, selector, serializer, and hook wrapper through the authenticated service.
-- [ ] GREEN: run `go test ./internal/adapters/codex -run 'TestSessionStart|TestTranscriptCanary|TestSelection|TestTranscriptFilesystemOpen' -count=1 && go test -race ./internal/adapters/codex`; expected exit `0`; negative fixture `testdata/codex/unverified-or-cross-workspace.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t11-session-green.txt`.
+- [ ] GREEN: run `go test ./internal/adapters/codex -run 'TestSessionStart|TestTranscriptCanary|TestSelection|TestTranscriptFilesystemOpen|TestReadFindingQuarantine|TestScannerFailureNoMutation' -count=1 && go test -race ./internal/adapters/codex`; expected exit `0`; negative fixture `testdata/codex/scanner-finding-or-uncertain-no-content.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t11-session-green.txt`.
 - [ ] Commit `feat: add bounded verified sessionstart context`.
 
 ### Task 12: Implement import/export, review queue, confirmation, promotion, and content-output scanning
 
-**Dependencies:** T5, T6, T7, T8, T9, T10. **Checkpoint:** CP3. **Gate coverage:** G04, G05, G06, G07, G15, G18, G20, G30.
+**Dependencies:** T5, T6, T7, T8, T9, T10. **Checkpoint:** CP3. **Gate coverage:** G04, G05, G06, G07, G14, G15, G18, G20, G30.
 
 **Files:**
 
@@ -370,27 +381,29 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Implement keyset review queue ordered by `(created_at, memory_id)` with 10 default/20 maximum/32 KiB whole-item bounds, freshly scanned content, provenance, revision, omitted count, and opaque cursor.
 - Implement CLI exact-revision confirmation and restore; no MCP confirmation or verified override.
 - Implement procedure-only skill promotion with active/verified/non-quarantined checks, dry-run/apply receipt fingerprinting, safe target output, and recorded source revision/output fingerprint.
+- Route every import/export/review/confirmation/promotion and other content-output path through T5 `ContentOutputGuard`; clean content is returned only after a scanner success, findings invoke atomic `ScanAndQuarantine` and block readiness/projection, and scanner error/uncertainty returns no content and no mutation.
 
-- [ ] Write failing tests for format validation, duplicate/conflicting import, limits, unverified review discovery after lost output/restart, stale confirmation, promotion trust/fingerprint/race, and secret scanning on every output route.
-- [ ] RED: run `go test ./internal/application ./internal/adapters/mcp ./internal/cli -run 'TestImport|TestExport|TestReview|TestPromotion|TestContentOutputScan' -count=1`; expected exit `1`; negative fixture `testdata/io/lost-output-restart.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t12-io-red.txt`.
+- [ ] Write failing tests for format validation, duplicate/conflicting import, limits, unverified review discovery after lost output/restart, stale confirmation, promotion trust/fingerprint/race, and secret scanning on every output route, including read-finding quarantine and scanner-failure/no-mutation failpoints.
+- [ ] RED: run `go test ./internal/application ./internal/adapters/mcp ./internal/cli -run 'TestImport|TestExport|TestReview|TestPromotion|TestContentOutputScan|TestRouteQuarantine|TestScannerFailureNoMutation' -count=1`; expected exit `1`; negative fixture `testdata/io/lost-output-restart.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t12-io-red.txt`.
 - [ ] Implement import/export/review/promotion adapters through application services.
-- [ ] GREEN: run `go test ./internal/application ./internal/adapters/mcp ./internal/cli -run 'TestImport|TestExport|TestReview|TestPromotion|TestContentOutputScan' -count=1 && go test -race ./internal/application ./internal/adapters/mcp ./internal/cli`; expected exit `0`; negative fixture `testdata/io/secret-in-export-or-promotion.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t12-io-green.txt`.
+- [ ] GREEN: run `go test ./internal/application ./internal/adapters/mcp ./internal/cli -run 'TestImport|TestExport|TestReview|TestPromotion|TestContentOutputScan|TestRouteQuarantine|TestScannerFailureNoMutation' -count=1 && go test -race ./internal/application ./internal/adapters/mcp ./internal/cli`; expected exit `0`; negative fixture `testdata/io/secret-in-export-or-promotion.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t12-io-green.txt`.
 - [ ] Commit `feat: add review import export and skill promotion flows`.
 
 ### Task 13: Implement purge, backups, migrations, restore, rule activation, inventory reconciliation, and global maintenance lock
 
-**Dependencies:** T2, T3, T4, T5, T7, T9. **Checkpoint:** CP4. **Gate coverage:** G11, G12, G13, G14, G15, G19, G23, G24, G25, G26, G30.
+**Dependencies:** T2, T3, T4, T5, T7, T9, T10. **Checkpoint:** CP4. **Gate coverage:** G10, G11, G12, G13, G14, G15, G19, G23, G24, G25, G26, G30.
 
 **Files:**
 
-- Create: `internal/maintenance/lock.go`, `internal/maintenance/purge.go`, `internal/maintenance/backup.go`, `internal/maintenance/inventory.go`, `internal/maintenance/migrate.go`, `internal/maintenance/restore.go`, `internal/maintenance/rule_upgrade.go`, `internal/maintenance/activation_journal.go`, `internal/maintenance/readiness.go`, and `internal/cli/commands/scanner.go` for the operator-owned rule-upgrade command.
+- Create: `internal/maintenance/lock.go`, `internal/maintenance/purge.go`, `internal/maintenance/backup.go`, `internal/maintenance/reconcile.go`, `internal/maintenance/inventory.go`, `internal/maintenance/migrate.go`, `internal/maintenance/restore.go`, `internal/maintenance/rule_upgrade.go`, `internal/maintenance/activation_journal.go`, `internal/maintenance/readiness.go`, `internal/cli/commands/scanner.go`, and `internal/cli/commands/backup.go` for operator-owned maintenance commands.
 - Test: maintenance tests and crash/failpoint fixtures under `testdata/maintenance/`.
 
 **Interfaces:**
 
 - Implement dry-run/apply, single-use expiring receipts bound to workspace/memory/revision/projection/backup inventory.
 - Quiesce requests, drain readers, insert non-content `purge_pending`, remove identity/revisions/FTS/usage/outbox/idempotency/promotion links, secure-delete SQLite/FTS rows, checkpoint/truncate WAL, rebuild projections, delete inventoried matching backups, fsync, mark complete, and issue deletion receipt last.
-- Implement authenticated pre-created pending backup sidecars, `VACUUM INTO`, hash/fsync/rename/complete manifest, inventory mirror, read-only integrity/foreign-key/schema/FTS/application checks, and startup reconciliation of complete/partial/orphan/unauthenticated entries.
+- Implement authenticated pre-created pending backup sidecars, `VACUUM INTO`, hash/fsync/rename/complete manifest, inventory mirror, read-only integrity/foreign-key/schema/FTS/application checks, and startup reconciliation of complete/partial/orphan/unauthenticated entries. Startup records unknown entries as managed cleanup candidates, keeps readiness false, and performs no destructive action.
+- Own the literal operator commands `talaria-mem db backup reconcile --dry-run` and `talaria-mem db backup reconcile --apply <receipt>`. Dry-run writes a single-use, expiring receipt bound to the exact path, owner/mode, content fingerprint/hash, proposed action, scope, and receipt ID. Apply requires the unchanged path/owner/mode/fingerprint/action, unexpired unused receipt, and the global maintenance lock before quarantine/deletion and inventory/readiness rebuild; drift, replay, expiry, crash, and restart leave the entry untouched and emit no content. T10 owns only stable CLI registration and contract routing.
 - Apply forward-only transactional migrations with exact partial-version journal, unready state on failure, restart resume, verified backup, and no `VACUUM` inside ordinary migration.
 - Implement offline restore under one global lifecycle/database lock with daemon-stop verification, sidecar identity/hash/mode/integrity checks, same-directory replacement, inventory rebuild, and startup eligibility checks.
 - Run bounded, deterministic startup cleanup of idempotency rows older than the 24-hour retention window without touching newer replay/conflict records; cleanup is covered by restart and downtime fixtures.
@@ -399,60 +412,63 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - On scanner failure, uncertainty, panic, cancellation, timeout, projection failure, or crash, keep the prior rule generation active; persist `rollback`/`failed`, resume or roll back from the journal on startup before readiness, and never expose candidate-rule data. T13 is the only owner of this orchestration; T4 remains scanner-local and T9 remains the concrete managed-filesystem boundary.
 - Purge is receipt/lock-authorized and non-content: it must complete without a scanner and emit no content. Restore remains receipt/lock-authorized and scanner-gated; a scanner outage rejects restore without output or state change. Add explicit operation-matrix evidence for both paths.
 
-- [ ] Write failpoint tests at every purge, backup, inventory, migration, restore, rule-upgrade phase, lock, idempotency-cleanup, and startup boundary before production code. Include concurrent writer and scanner-outage fixtures.
-- [ ] RED: run `go test ./internal/maintenance -run 'TestRuleUpgrade|TestRuleUpgradeFailpoint|TestRuleUpgradeConcurrentWriter|TestRuleUpgradeRestart|TestRuleUpgradeReadiness|TestPurge|TestBackup|TestInventory|TestMigration|TestRestore|TestMaintenanceLock|TestIdempotencyCleanup' -count=1`; expected exit `1`; negative fixture `testdata/maintenance/rule-upgrade-crash-after-rescan.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-maintenance-red.txt`.
+- [ ] Write failpoint tests at every purge, backup, inventory, migration, restore, rule-upgrade phase, lock, idempotency-cleanup, and startup boundary before production code. Include concurrent writer and scanner-outage fixtures, unknown/orphan/unauthenticated no-delete startup cases, dry-run/apply receipt drift/expiry/single-use cases, and crash-resume evidence.
+- [ ] RED: run `go test ./internal/maintenance -run 'TestRuleUpgrade|TestRuleUpgradeFailpoint|TestRuleUpgradeConcurrentWriter|TestRuleUpgradeRestart|TestRuleUpgradeReadiness|TestPurge|TestBackup|TestBackupReconcile|TestUnknownBackupNoDelete|TestBackupReceiptDrift|TestInventory|TestMigration|TestRestore|TestMaintenanceLock|TestIdempotencyCleanup' -count=1`; expected exit `1`; negative fixture `testdata/maintenance/rule-upgrade-crash-after-rescan.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-maintenance-red.txt`.
 - [ ] Implement maintenance state machines and recovery protocols using repository, `ManagedFileStore`, `ActivationJournal`, scanner, projector, key, and readiness ports.
-- [ ] GREEN: run `go test ./internal/maintenance -run 'TestRuleUpgrade|TestRuleUpgradeFailpoint|TestRuleUpgradeConcurrentWriter|TestRuleUpgradeRestart|TestRuleUpgradeReadiness|TestPurge|TestPurgeScannerUnavailable|TestBackup|TestInventory|TestMigration|TestRestore|TestRestoreScannerUnavailable|TestMaintenanceLock|TestIdempotencyCleanup' -count=1 && go test -race ./internal/maintenance`; expected exit `0`; negative fixture `testdata/maintenance/scanner-unavailable-purge-and-restore.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-maintenance-green.txt`.
+- [ ] GREEN: run `go test ./internal/maintenance -run 'TestRuleUpgrade|TestRuleUpgradeFailpoint|TestRuleUpgradeConcurrentWriter|TestRuleUpgradeRestart|TestRuleUpgradeReadiness|TestPurge|TestPurgeScannerUnavailable|TestBackup|TestBackupReconcile|TestUnknownBackupNoDelete|TestBackupReceiptDrift|TestInventory|TestMigration|TestRestore|TestRestoreScannerUnavailable|TestMaintenanceLock|TestIdempotencyCleanup' -count=1 && go test -race ./internal/maintenance`; expected exit `0`; negative fixture `testdata/maintenance/unknown-backup-no-delete.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-maintenance-green.txt`.
 - [ ] Rule-upgrade evidence: run `go test ./internal/maintenance -run 'TestRuleUpgradeFailpoint|TestRuleUpgradeConcurrentWriter|TestRuleUpgradeRestart|TestRuleUpgradeReadiness' -count=1`; expected exit `0`; negative fixture `testdata/maintenance/rule-upgrade-concurrent-write-or-crash.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-rule-upgrade-green.txt`.
+- [ ] Backup-reconcile evidence: run `go test ./internal/maintenance ./internal/cli -run 'TestBackupReconcile|TestUnknownBackupNoDelete|TestBackupReceiptDrift' -count=1`; expected exit `0`; negative fixture `testdata/maintenance/backup-receipt-drift-or-replay.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-backup-reconcile-green.txt`; retain the dry-run and apply command output with receipt path, owner, fingerprint, proposed action, expiry, lock, and single-use result.
+- [ ] Operator command evidence: run `talaria-mem db backup reconcile --dry-run`; expected exit `0`; negative fixture `testdata/maintenance/unknown-backup-no-delete.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-backup-reconcile-dry-run.json`; then run `talaria-mem db backup reconcile --apply docs/superpowers/receipts/talaria-mem-v0.0.1/t13-backup-reconcile-dry-run.json`; expected exit `0`; negative fixture `testdata/maintenance/backup-receipt-drift-or-replay.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-backup-reconcile-apply.json`.
 - [ ] Commit `feat: add crash-resumable maintenance and recovery`.
 
 ### Task 14: Implement setup, daemon readiness, doctor/status, token rotation, and platform lifecycle
 
-**Dependencies:** T2, T9, T10, T13. **Checkpoint:** CP4. **Gate coverage:** G14, G17, G18, G19, G26, G27, G29, G30.
+**Dependencies:** T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13. **Checkpoint:** CP4. **Gate coverage:** G00, G12, G14, G15, G17, G18, G19, G26, G27, G29, G30.
 
 **Files:**
 
-- Create: `internal/lifecycle/daemon.go`, `internal/lifecycle/readiness.go`, `internal/lifecycle/setup.go`, `internal/lifecycle/doctor.go`, `internal/cli/commands/setup.go`, `internal/cli/commands/status.go`, `internal/cli/commands/doctor.go`, `internal/cli/commands/token.go`, `packaging/macos/com.araihu.talaria-mem.plist`, `packaging/linux/talaria-mem.service`.
-- Test: `internal/lifecycle/*_test.go`, platform-independent setup fixtures under `testdata/lifecycle/`.
+- Create: `internal/lifecycle/daemon.go`, `internal/lifecycle/readiness.go`, `internal/lifecycle/setup.go`, `internal/lifecycle/doctor.go`, `internal/runtime/composition.go`, `cmd/talaria-mem/main.go` final wiring, `internal/cli/commands/setup.go`, `internal/cli/commands/status.go`, `internal/cli/commands/doctor.go`, `internal/cli/commands/token.go`, `packaging/macos/com.araihu.talaria-mem.plist`, `packaging/linux/talaria-mem.service`.
+- Test: `internal/lifecycle/*_test.go`, `internal/runtime/composition_test.go`, final binary wiring tests, and platform-independent setup fixtures under `testdata/lifecycle/`.
 
 **Interfaces:**
 
 - Implement foreground/diagnostic daemon, storage/scanner/migration/projection readiness, health vs readiness distinction, bounded startup recovery, and actionable missing-daemon hook error. Read T13's `ActivationJournal`; readiness remains false for every pending/rescanning/quarantining/projection-rebuild/rollback/failed rule-generation phase and returns true only after durable active activation and projection verification.
+- Own the final one-binary composition root: `internal/runtime/composition.go` constructs exactly one daemon, CLI, MCP, HTTP, scanner, repository, projector, lifecycle, and maintenance graph from explicit dependencies; final `cmd/talaria-mem/main.go` wiring delegates to it. No package-init registration or second binary path is allowed.
 - Implement `setup codex --dry-run|--apply|--remove --dry-run|--apply`, unknown configuration preservation, same-directory backup/fsync/rename/fsync, idempotence, collision refusal, rollback, and installation fingerprint removal.
-- Implement `status`, `doctor`, `doctor --repair=fts --dry-run|--apply <receipt>`, `token rotate`, database/WAL/freelist sizes, ownership/mode/sidecar/unsafe path diagnostics without content. FTS repair compares row IDs and normalized content hashes, deletes/repopulates only under the global lock, and requires an explicit dry-run receipt.
+- Implement `status`, `doctor`, `doctor --repair=fts --dry-run|--apply <receipt>`, `token rotate`, database/WAL/freelist sizes, ownership/mode/sidecar/unsafe path diagnostics without content. FTS repair compares row IDs and normalized content hashes, verifies the T2 `unicode61 remove_diacritics 2` contract, deletes/repopulates only under the global lock, and requires an explicit dry-run receipt. Surface typed `storage-full` diagnostics from ordinary writes without retry loops or content output.
 - Install macOS LaunchAgent and Linux systemd-user declarations without downloading/upgrading/replacing binaries.
 
-- [ ] Write failing lifecycle/setup tests for dry-run, idempotence, unknown config, collision, rollback, fingerprint removal, readiness blockers, token rotation, FTS repair dry-run/apply and row/hash comparison, and platform file contents.
-- [ ] RED: run `go test ./internal/lifecycle -run 'TestSetup|TestReadiness|TestDoctorFTSRepair|TestToken|TestPlatform|TestActivationReadiness' -count=1`; expected exit `1`; negative fixture `testdata/lifecycle/pending-rule-upgrade-unready.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t14-lifecycle-red.txt`.
+- [ ] Write failing lifecycle/setup tests for dry-run, idempotence, unknown config, collision, rollback, fingerprint removal, readiness blockers, token rotation, FTS repair dry-run/apply and row/hash comparison, exact tokenizer/Unicode preservation, typed `SQLITE_FULL` ordinary-write failure/no retry, composition-root graph cardinality, and platform file contents.
+- [ ] RED: run `go test ./internal/lifecycle ./internal/runtime ./cmd/talaria-mem -run 'TestSetup|TestReadiness|TestDoctorFTSRepair|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestToken|TestPlatform|TestActivationReadiness|TestComposition|TestSingleBinary' -count=1`; expected exit `1`; negative fixture `testdata/lifecycle/missing-composition-provider.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t14-lifecycle-red.txt`.
 - [ ] Implement lifecycle commands, service templates, and readiness wiring.
-- [ ] GREEN: run `go test ./internal/lifecycle -run 'TestSetup|TestReadiness|TestDoctorFTSRepair|TestToken|TestPlatform|TestActivationReadiness' -count=1 && go test -race ./internal/lifecycle`; expected exit `0`; negative fixture `testdata/lifecycle/unsafe-path-or-stale-rule-journal.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t14-lifecycle-green.txt`.
+- [ ] GREEN: run `go test ./internal/lifecycle ./internal/runtime ./cmd/talaria-mem -run 'TestSetup|TestReadiness|TestDoctorFTSRepair|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestToken|TestPlatform|TestActivationReadiness|TestComposition|TestSingleBinary' -count=1 && go test -race ./internal/lifecycle ./internal/runtime ./cmd/talaria-mem`; expected exit `0`; negative fixture `testdata/lifecycle/unsafe-path-or-stale-rule-journal.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t14-lifecycle-green.txt`.
 - [ ] Commit `feat: add daemon lifecycle setup and diagnostics`.
 
 ### Task 15: Integrated acceptance, compliance, final evidence, and candidate freeze
 
-**Dependencies:** T1–T14. **Checkpoint:** CP5. **Gate coverage:** G00–G30.
+**Dependencies:** T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14. **Checkpoint:** CP5. **Gate coverage:** G00–G30.
 
 **Files:**
 
 - Create: `test/acceptance/`, `test/e2e/`, and receipt artifacts under `docs/superpowers/receipts/talaria-mem-v0.0.1/`.
 - Modify: `Makefile`, `.github/workflows/ci.yml`, `README.md` only when required to document the implemented v0.0.1 journey and verified commands.
-- Test: machine-validated gate matrix, end-to-end journey, scanner-outage purge/restore fixtures, and specification traceability tests under `test/acceptance/` and `test/e2e/`.
+- Test: `test/acceptance/gate_matrix_test.go`, `test/acceptance/dag_header_test.go`, machine-validated gate matrix, DAG/task-header and gate-header traceability tests, end-to-end journey, scanner-outage purge/restore fixtures, and specification traceability tests under `test/acceptance/` and `test/e2e/`.
 
 **Interfaces:**
 
-- Bind each acceptance test to a stable gate ID, spec section, exact command, exit code, raw output location, and candidate commit/tree.
+- Bind each acceptance test to a stable gate ID, spec section, exact command, expected exit code, negative fixture, raw output location, receipt hash, and `tested_source_commit`/`tested_source_tree` captured before that receipt commit. No committed matrix row or receipt may contain the final candidate commit/tree that includes the row or receipt itself.
 - Produce a specification-to-code traceability matrix covering sections 1–16, every included requirement, every excluded/deferred feature, and every section-14 acceptance gate.
-- Produce a pre-review candidate Git identity receipt: base, HEAD, tree, branch, remote SHA, staged/unstaged/untracked status, managed branch/worktree ledgers, tests, and deferred work. Candidate receipt bytes and candidate source remain immutable after review begins.
-- Produce the final review-verdict receipt in the external control-plane ledger, keyed by the candidate commit/tree and containing both independent verdicts, reviewer identities, exact evidence, and deferred work. Do not commit or alter candidate bytes after either review; this avoids a self-referential receipt and keeps one reviewed identity authoritative.
-- The matrix is a machine-validated table with required fields `gate_id|owner|spec_section|command|expected_exit|negative_fixture|receipt_path|candidate_commit|candidate_tree`; it must include these fields for every G00–G30 row and fail closed when any field is empty or a command/fixture/receipt is missing. It specifically covers failure-only `resolution_state`; atomic pin reserves; eight-reader/one-writer plus two-/five-second limits; 24-hour idempotency replay/cleanup; `doctor --repair=fts` dry-run/apply row/hash repair; Betterleaks comparative rule upgrade, durable activation journal, full active-data rescan/readiness, crash rollback, and scanner-outage purge/restore behavior; and denied-egress/no-`connect`/literal-loopback/static-reachability evidence.
+- Use an explicit two-phase identity protocol. Phase A runs every gate against an immutable source commit/tree, writes identity-free matrix rows and raw receipts containing only `tested_source_commit`, `tested_source_tree`, receipt paths/hashes, commands, exits, fixtures, status, and evidence, then commits the source/tests/evidence. Phase B stops writers and freezes that commit without changing candidate bytes; the reconciler writes an external control-plane manifest binding the final candidate commit/tree, matrix hash, every receipt hash, base/tree/status/manifest, and review packet. The pre-review identity receipt is external-only; it is never committed under the candidate.
+- Produce the final review-verdict receipt only in the external control-plane ledger, keyed by the final candidate commit/tree and matrix/receipt hashes and containing both independent verdicts, reviewer identities, exact evidence, and deferred work. Do not commit or alter candidate bytes after Phase B or either review; this avoids a self-referential receipt and keeps one reviewed identity authoritative.
+- The matrix is a machine-validated table with required fields `gate_id|owner|spec_section|command|expected_exit|negative_fixture|receipt_path|tested_source_commit|tested_source_tree|receipt_hash`; it must include these fields for every G00–G30 row and fail closed when any field is empty or a command/fixture/receipt is missing. It must reject `candidate_commit` and `candidate_tree` fields in committed matrix/receipt artifacts; only the external Phase-B manifest may bind final candidate identity. It specifically covers failure-only `resolution_state`; atomic pin reserves; eight-reader/one-writer plus two-/five-second limits; 24-hour idempotency replay/cleanup; `doctor --repair=fts` dry-run/apply row/hash repair; Betterleaks comparative rule upgrade, durable activation journal, full active-data rescan/readiness, crash rollback, and scanner-outage purge/restore behavior; and denied-egress/no-`connect`/literal-loopback/static-reachability evidence.
 
-- [ ] RED: run `go test ./test/acceptance -run 'TestGateMatrixCompleteness' -count=1`; expected exit `1`; negative fixture `testdata/acceptance/missing-command-or-receipt-field.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-matrix-red.txt`.
-- [ ] GREEN: build the gate matrix from the approved spec and plan, then run `go test ./test/acceptance -run 'TestGateMatrixCompleteness' -count=1`; expected exit `0`; negative fixture `testdata/acceptance/empty-negative-fixture.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-matrix-green.txt`. The test must fail if any G00–G30 row lacks `gate_id`, owner, spec section, literal command, expected exit, negative fixture, receipt path, candidate commit, or candidate tree.
+- [ ] RED: run `go test ./test/acceptance -run 'TestGateMatrix|TestGateMatrixCompleteness|TestDAGHeaderTraceability|TestGateHeaderTraceability' -count=1`; expected exit `1`; negative fixture `testdata/acceptance/missing-command-or-receipt-field.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-matrix-red.txt`.
+- [ ] GREEN: run `go test ./test/acceptance -run 'TestGateMatrix|TestGateMatrixCompleteness|TestDAGHeaderTraceability|TestGateHeaderTraceability' -count=1`; expected exit `0`; negative fixture `testdata/acceptance/empty-negative-fixture.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-matrix-green.txt`. The test must fail if any G00–G30 row lacks `gate_id`, owner, spec section, literal command, expected exit, negative fixture, receipt path, tested source commit/tree, or receipt hash, or if a committed row/receipt contains a final candidate identity.
 - [ ] GREEN: run `go test ./test/acceptance -run 'TestAllGates|TestJourney|TestRuleUpgrade|TestPurgeScannerOutage|TestRestoreScannerOutage' -count=1`; expected exit `0`; negative fixture `testdata/acceptance/deferred-feature-or-content-leak.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-gates-green.txt`.
 - [ ] GREEN: run `go test ./... && go test -race ./... && go vet ./... && go generate ./... && git diff --exit-code -- internal/adapters/http/openapi.gen.go && vacuum lint api/openapi/talaria.yaml api/openapi/vacuum.yaml && vacuum bundle api/openapi/talaria.yaml`; expected exit `0`; negative fixture `testdata/acceptance/generated-diff-or-vacuum-invalid.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-suite-green.txt`.
 - [ ] GREEN: run `go test ./test/acceptance -run 'TestSpecTraceability' -count=1`; expected exit `0`; negative fixture `testdata/acceptance/unmapped-spec-requirement.json`; receipt `docs/superpowers/receipts/talaria-mem-v0.0.1/t15-compliance-green.txt`; classify every requirement as implemented, intentionally excluded, or blocker with exact section/file/line evidence.
-- [ ] Commit `test: prove talaria-mem v0.0.1 acceptance gates` with all candidate source, tests, receipts, and compliance evidence before review; record its exact HEAD/tree as the sole candidate identity.
-- [ ] Freeze candidate; stop writers; notify both reviewers with the complete packet and exact candidate identity.
+- [ ] Commit `test: prove talaria-mem v0.0.1 acceptance gates` with all source, tests, identity-free matrix rows, receipts, and compliance evidence; capture the tested source commit/tree before each receipt commit and never write the eventual final commit/tree into these artifacts.
+- [ ] Phase B: freeze the committed source, stop writers, verify the exact HEAD/tree/status/manifest, and write the final candidate commit/tree, matrix hash, and receipt hashes only to the external control-plane ledger; notify both reviewers with that external packet and exact identity.
 - [ ] Address findings only through a bounded correction packet, then create a new candidate identity and rerun all affected gates and both reviews. Any byte, generated artifact, or evidence change restarts the freeze.
 - [ ] Require both reviewers to return `ACCEPT` for the same candidate commit/tree; write verdicts only to the external control-plane receipt, never into the reviewed candidate.
 
@@ -460,37 +476,37 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 | Gate | Requirement from specification section 14 | Task(s) |
 | --- | --- | --- |
-| G00 | Compiling one Go module/binary, deterministic commands, no source-tree binaries | T1, T15 |
+| G00 | Compiling one Go module/binary, deterministic commands, no source-tree binaries | T1, T14, T15 |
 | G01 | Explicit memory survives restart and appears in FTS | T3, T5, T8, T15 |
 | G02 | SessionStart verified-only, precedence, dedup, caps, pins, scanner failure | T8, T11, T15 |
 | G03 | Transcript canary and filesystem-open proof | T11, T15 |
 | G04 | Actor/trust/confirmation/standing-instruction and failure `resolution_state` matrix, including 24-hour idempotency retention | T2, T5, T10, T11, T12, T15 |
-| G05 | Bounded unverified review rediscovery after lost output/restart | T5, T12, T15 |
+| G05 | Bounded unverified review rediscovery after lost output/restart | T5, T10, T12, T15 |
 | G06 | MCP/import imperative writes remain unverified and absent from context | T5, T10, T11, T12, T15 |
 | G07 | Skill promotion trust and revision/fingerprint receipt | T5, T12, T15 |
-| G08 | First inferred workspace warning | T6, T11, T15 |
-| G09 | Binding and transactional merge/normalization/alias/redirect matrix | T6, T10, T15 |
-| G10 | Atomic revision/FTS/outbox mutation and forget/restore | T3, T5, T6, T7, T13, T15 |
-| G11 | Tombstone revision, restore trust, stale conflict, restart | T5, T13, T15 |
-| G12 | FTS active/verified/non-quarantined predicate across all lifecycle paths plus `doctor --repair=fts` dry-run/apply row/hash recovery | T3, T5, T7, T8, T13, T14, T15 |
+| G08 | First inferred workspace warning | T2, T6, T10, T11, T15 |
+| G09 | Binding and transactional merge/normalization/alias/redirect matrix | T2, T6, T10, T15 |
+| G10 | Atomic revision/FTS/outbox mutation and forget/restore | T2, T3, T5, T6, T7, T13, T15 |
+| G11 | Tombstone revision, restore trust, stale conflict, restart | T2, T3, T5, T13, T15 |
+| G12 | FTS active/verified/non-quarantined predicate with exact `unicode61 remove_diacritics 2` tokenizer and typed `SQLITE_FULL` ordinary-write failure across all lifecycle paths plus `doctor --repair=fts` dry-run/apply row/hash recovery | T2, T3, T5, T7, T8, T13, T14, T15 |
 | G13 | Projection failpoints, deterministic replay, drift quarantine/rebuild, and rule-generation activation journal recovery | T2, T7, T13, T15 |
-| G14 | Quarantine removes FTS/outbox intent and blocks readiness until scrub, including rule-upgrade activation | T4, T5, T7, T13, T14, T15 |
-| G15 | Secret fixtures across every content boundary and safe logs/errors, including comparative rule upgrades, durable activation, full active-data rescan, crash rollback, and scanner-outage operation matrix | T4, T5, T7, T9, T12, T13, T14, T15 |
+| G14 | Read-time and mutation-time quarantine removes FTS/outbox intent atomically and blocks readiness until scrub, including every output route and rule-upgrade activation | T4, T5, T7, T10, T11, T12, T13, T14, T15 |
+| G15 | Secret fixtures across every content boundary and safe logs/errors, including comparative rule upgrades, durable activation, full active-data rescan, crash rollback, and scanner-outage operation matrix | T4, T5, T7, T9, T10, T12, T13, T14, T15 |
 | G16 | Denied egress for every daemon operation; process-specific no-`connect`, literal-loopback client, dependency/static reachability, and scanner-network lockout evidence | T4, T9, T15 |
-| G17 | Loopback Host/Origin/credential/method/route authentication matrix | T9, T10, T14, T15 |
-| G18 | Managed ownership/mode/no-follow/no-clobber | T9, T12, T14, T15 |
-| G19 | Root key loss, purpose derivation, bearer-only rotation, restore manifest | T9, T13, T14, T15 |
-| G20 | Search/session caps, atomic five-item/8-KiB pin reserves, eight-reader/one-writer and two-/five-second limits, whole-item omission, metadata limits, safe receipts | T2, T5, T8, T9, T10, T11, T12, T15 |
-| G21 | Usage/opportunity accounting and score explanations | T8, T15 |
+| G17 | Loopback Host/Origin/credential/method/route authentication matrix | T9, T10, T11, T14, T15 |
+| G18 | Managed ownership/mode/no-follow/no-clobber | T2, T7, T9, T12, T14, T15 |
+| G19 | Root key loss, purpose derivation, bearer-only rotation, restore manifest | T2, T3, T5, T9, T13, T14, T15 |
+| G20 | Search/session caps, atomic five-item/8-KiB pin reserves, eight-reader/one-writer and two-/five-second limits, whole-item omission, metadata limits, safe receipts | T2, T3, T5, T6, T8, T9, T10, T11, T12, T15 |
+| G21 | Usage/opportunity accounting and score explanations | T2, T3, T8, T15 |
 | G22 | Pruning grace, Wilson bound, thresholds, protections, deterministic ordering | T8, T15 |
 | G23 | Crash-resumable purge and complete managed representation cleanup | T5, T7, T9, T13, T15 |
-| G24 | Backup sidecar failpoints, orphan/partial resume, receipt cleanup, inventory restore | T3, T9, T13, T15 |
+| G24 | Backup sidecar failpoints, orphan/partial/unknown resume, no-delete startup reconciliation, explicit `db backup reconcile --dry-run`/`--apply <receipt>` binding, receipt cleanup, inventory restore | T3, T9, T13, T15 |
 | G25 | Migration partial versions, forward resume, verified backup, full restore, unready state | T3, T13, T15 |
 | G26 | Global lock excludes daemon and offline maintenance | T9, T13, T14, T15 |
-| G27 | Setup dry-run, unknown config, idempotence, collision, rollback, fingerprint removal | T9, T14, T15 |
+| G27 | Setup dry-run, unknown config, idempotence, collision, rollback, fingerprint removal | T14, T15 |
 | G28 | Vacuum OpenAPI lint/bundle and generated-code checks | T1, T10, T15 |
 | G29 | macOS LaunchAgent and Linux systemd-user declared platform tests | T14, T15 |
-| G30 | Full suite, race, vet, code generation, machine-validated owner/section/command/exit/fixture/receipt matrix, external verdict receipt, and clean immutable candidate identity | T1–T15 |
+| G30 | Full suite, race, vet, code generation, machine-validated owner/section/command/exit/fixture/receipt/tested-source matrix, DAG/header traceability, external Phase-B identity/verdict manifest, and clean immutable candidate identity | T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15 |
 
 ## Specification section traceability
 
@@ -505,7 +521,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 | 8 Canonical storage, transactions, activation journal, Markdown projection | T2, T3, T5, T7, T13, T15 |
 | 9 Retrieval and ranking | T8, T10, T11, T12, T15 |
 | 10 Pruning | T8, T12, T15 |
-| 11 SQLite operations, activation journal, FTS repair, and migrations | T2, T3, T9, T13, T14, T15 |
+| 11 SQLite operations, activation journal, exact FTS tokenizer/SQLITE_FULL contract, FTS repair, backup reconciliation, and migrations | T2, T3, T9, T13, T14, T15 |
 | 12 MCP and CLI contracts | T5, T10, T11, T12, T14, T15 |
 | 13 Implementation structure | T1–T14 |
 | 14 Acceptance gates | T15 plus the mapped gates above |
@@ -514,14 +530,14 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 ## Final self-review checklist
 
-- [ ] Every included specification section and section-14 gate maps to a task and executable evidence.
-- [ ] Every task has exact files, interfaces, dependencies, tests, RED/GREEN commands, and a commit boundary.
+- [ ] Every included specification section and section-14 gate maps to a task and executable evidence; the gate-header table and each task header are machine-checked for exact bidirectional equality.
+- [ ] Every task has exact files, interfaces, dependencies, tests, RED/GREEN commands, and a commit boundary; the advertised DAG is machine-checked against every task header and is acyclic.
 - [ ] No task depends on undefined types, functions, migration names, or generated artifacts.
 - [ ] Shared files have an explicit reconciler owner.
 - [ ] TDD, no-secret-output, no-network, scoped mutation/auth contracts, optimistic revision, atomic pin reserves, FTS eligibility, projection durability, activation journal recovery, and lifecycle locks are tested before implementation claims.
-- [ ] T2 owns replaceable `ManagedFileStore` and `ActivationJournal` ports; T7 has direct T4 scanner dependency and compiling fakes; T9 is the concrete filesystem/wiring boundary; T13 owns rule-upgrade activation and operator command.
-- [ ] Every G00–G30 matrix row has a named owner, spec section, literal command, expected exit code, negative fixture, receipt path, candidate commit, and candidate tree, and the completeness test fails when any field is absent.
+- [ ] T2 owns replaceable `ManagedFileStore` and `ActivationJournal` ports; T7 has direct T4 scanner dependency and compiling fakes; T9 is the concrete filesystem/wiring boundary; T13 owns rule-upgrade activation and both backup-reconcile operator commands; T14 owns the final one-binary composition root and wiring tests.
+- [ ] Every G00–G30 matrix row has a named owner, spec section, literal command, expected exit code, negative fixture, receipt path/hash, and tested source commit/tree; the completeness test rejects candidate-identity fields and fails when any required field is absent.
 - [ ] Purge is receipt/lock-authorized and succeeds without scanner availability while emitting no content; restore is receipt/lock-authorized, scanner-gated, and fails closed without output or state change when scanning is unavailable.
-- [ ] Candidate receipts and evidence are committed before review; final verdicts live only in the external control-plane receipt keyed to the immutable candidate identity.
+- [ ] CP5 follows the two-phase identity protocol: committed matrix/receipts contain only tested source commit/tree plus receipt hashes; the external control-plane ledger alone binds final candidate commit/tree, matrix hash, receipt hashes, frozen status/manifest, and verdicts. The self-reference check rejects any committed artifact containing its own final candidate identity or a `candidate_commit`/`candidate_tree` matrix field.
 - [ ] The plan contains no `TODO`, `TBD`, “implement later,” “appropriate error handling,” or similar placeholder.
 - [ ] Post-v0.0.1 roadmap work is explicitly excluded.
