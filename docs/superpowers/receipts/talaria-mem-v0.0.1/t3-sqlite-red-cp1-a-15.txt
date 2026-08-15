@@ -1,0 +1,28 @@
+task=T3-schema
+phase=RED
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=5ca0a05bcde7b69075cb037376b862c3a8d4c7bb
+tested_source_tree=96d8f59d4c363efb079b31f19d00f62774952023
+parent=T2-green a99e5bd66643372063209fce9aafc4a67e27e61c
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1
+command_sha256=3a56bb5bf55dab311d6887f427abe9a0fe34ff2308e518411a36637c33cc842f
+fixture=testdata/sqlite/invalid-rule-generation-transition.json
+fixture_sha256=5e4b3e334413d8e1f51dbb8ca8cc8379c1673c3df73ee8e112401fab05639d53
+expected_exit=1
+actual_exit=1
+stdout_bytes=226
+stdout_sha256=95323beb7b8be4aa3979e9fb4a1c0a385447e5672becb830464dc6d1840e315b
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+--- FAIL: TestSchemaActivationJournalConstraint (0.00s)
+    db_test.go:30: rollback after live mutation accepted; schema constraint missing
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.414s
+FAIL
+stdout_end
+stderr_begin
+stderr_end
+assertion=invalid rule-generation transition fixture decoded; RED fails specifically because lax schema accepts rollback after live mutation

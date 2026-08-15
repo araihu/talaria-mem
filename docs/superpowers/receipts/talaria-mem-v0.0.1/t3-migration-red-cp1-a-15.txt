@@ -1,0 +1,28 @@
+task=T3-migration
+phase=RED
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=5ca0a05bcde7b69075cb037376b862c3a8d4c7bb
+tested_source_tree=96d8f59d4c363efb079b31f19d00f62774952023
+parent=T2-green a99e5bd66643372063209fce9aafc4a67e27e61c
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+command_sha256=e142918193e8847d7851338be3dfdcd80dfe4bc394482f2ebaba694a46d3d216
+fixture=testdata/sqlite/partial-migration-v4.json
+fixture_sha256=0285e9f347ef39973cd4f854aedcff8badcd5e428d2ab0d7f7b5cf354c6cedf1
+expected_exit=1
+actual_exit=1
+stdout_bytes=208
+stdout_sha256=e67d1ba49587bf7295a19f04e9f35cdeafecde71f91c0661914b293c9256845d
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+--- FAIL: TestMigrationRoundTrip (0.00s)
+    migrations_test.go:35: durable schema_migrations authority count = 0, want 1
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.216s
+FAIL
+stdout_end
+stderr_begin
+stderr_end
+assertion=partial migration fixture decoded; RED fails specifically because ApplyMigrations leaves durable schema_migrations authority absent
