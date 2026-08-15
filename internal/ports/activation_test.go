@@ -6,22 +6,49 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/testutil"
 )
 
-func TestActivationJournal(t *testing.T) {
+func TestActivationJournalPhaseContract(t *testing.T) {
+	t.Parallel()
 	var fixture struct {
-		Case     string   `json:"case"`
-		Required []string `json:"required"`
+		Case   string   `json:"case"`
+		Reject []string `json:"reject"`
 	}
-	testutil.ReadJSONFixture(t, &fixture, "domain", "missing-port-contract.json")
-	if fixture.Case != "missing-port-contract" || len(fixture.Required) != 3 {
-		t.Fatalf("unexpected domain fixture: %+v", fixture)
+	testutil.ReadJSONFixture(t, &fixture, "domain", "unsafe-follow-or-invalid-phase.json")
+	if fixture.Case != "unsafe-follow-or-invalid-phase" || len(fixture.Reject) != 3 {
+		t.Fatalf("unexpected activation fixture: %+v", fixture)
 	}
-	var keyDeriver KeyDeriver
-	var fileStore ManagedFileStore
-	var journal ActivationJournal
-	if keyDeriver != nil || fileStore != nil || journal != nil {
-		t.Fatal("T2 contract stubs unexpectedly instantiated")
+
+	valid := []ActivationPhase{
+		ActivationPending,
+		ActivationQuiesced,
+		ActivationRescanning,
+		ActivationQuarantining,
+		ActivationProjectionRebuild,
+		ActivationActive,
+		ActivationCandidateDiscarded,
+		ActivationLiveMutationStarted,
+		ActivationFailed,
+		ActivationRollback,
 	}
-	if err := ValidateActivationTransition(ActivationRecord{Phase: ActivationPending}, ActivationActive); err == nil {
-		t.Fatal("pending to active transition accepted; missing activation contract behavior")
+	for _, phase := range valid {
+		if !phase.Valid() {
+			t.Errorf("phase %q invalid", phase)
+		}
+	}
+
+	beforeMutation := ActivationRecord{Phase: ActivationRescanning}
+	if err := ValidateActivationTransition(beforeMutation, ActivationRollback); err != nil {
+		t.Fatalf("pre-mutation rollback rejected: %v", err)
+	}
+	afterMutation := ActivationRecord{Phase: ActivationLiveMutationStarted, LiveMutationStarted: true}
+	if err := ValidateActivationTransition(afterMutation, ActivationRollback); err == nil {
+		t.Fatal("post-mutation rollback accepted")
+	}
+	if err := ValidateActivationTransition(afterMutation, ActivationRescanning); err != nil {
+		t.Fatalf("post-mutation resume rejected: %v", err)
+	}
+
+	record := ActivationRecord{SafeError: "scanner unavailable", ResumeCursor: "cursor-1"}
+	if err := record.ValidateNoContent(); err != nil {
+		t.Fatalf("safe journal record rejected: %v", err)
 	}
 }

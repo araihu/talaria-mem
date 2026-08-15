@@ -1,0 +1,4 @@
+{
+  "case": "unsafe-follow-or-invalid-phase",
+  "reject": ["symlink-follow", "rollback-after-live-mutation", "content-in-journal"]
+}
