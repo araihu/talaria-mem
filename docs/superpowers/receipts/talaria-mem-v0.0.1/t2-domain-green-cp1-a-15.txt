@@ -1,0 +1,25 @@
+task=T2
+phase=GREEN
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=9ea5f7f3b98976d7e44fb57d787fa067da96b50e
+tested_source_tree=b34f3e2c40accf289642317c50dcd5b505c2a7f2
+parent=T1-green b1dc7a54c9c1f73a338c7b605df6613478c4c796
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports
+command_sha256=33ba8035411a33e4753e893f69ff42489f81efe9751c681936a1c157c444b1ab
+fixture=testdata/domain/unsafe-follow-or-invalid-phase.json
+fixture_sha256=aabadf1a7e53c3ea8229de1f4fbb7bd0d0ab854e205c517ab6c731232588c8db
+expected_exit=0
+actual_exit=0
+stdout_bytes=133
+stdout_sha256=3e321857e3e8b4d3c3335c173d04499634ef13168e3ba2d1e31486e2dc8856a3
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	0.384s
+ok  	github.com/guilhermecastro/talaria-mem/internal/ports	0.652s
+stdout_end
+stderr_begin
+stderr_end
+assertion=domain enums, normalization, key derivation, managed-file and activation contracts pass; green fixture decoded by TestActivationJournalPhaseContract
