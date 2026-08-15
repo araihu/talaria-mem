@@ -1,0 +1,29 @@
+task=T2
+phase=RED
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=2bd532021a764e7d59fc579ace44bd2b8f5de354
+tested_source_tree=c64597346f8b953d596a955c0b1b53e4e64505ab
+parent=T1-green b1dc7a54c9c1f73a338c7b605df6613478c4c796
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1
+command_sha256=024e3dc4b88d70853fd3c76f7c4cd845769d4637ec4c18d92eb8c62ee8f8af2e
+fixture=testdata/domain/missing-port-contract.json
+fixture_sha256=b682090c85494201d75c5a0f34006ba7c352375503c1d448db0034ef07250ac9
+expected_exit=1
+actual_exit=1
+stdout_bytes=295
+stdout_sha256=2c00b97a0ef895781b5abd91a5be2b561d8d2912e40fab927ec37c0e8b13df70
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+?	github.com/guilhermecastro/talaria-mem/internal/domain	[no test files]
+--- FAIL: TestActivationJournal (0.00s)
+    activation_test.go:25: pending to active transition accepted; missing activation contract behavior
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/ports	0.363s
+FAIL
+stdout_end
+stderr_begin
+stderr_end
+assertion=fixture required contracts decoded; RED fails on intended pending-to-active activation behavior, not arbitrary command failure
