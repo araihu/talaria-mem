@@ -1,0 +1,5 @@
+{
+  "args": ["definitely-unknown"],
+  "expected_exit": 2,
+  "creates_files": false
+}
