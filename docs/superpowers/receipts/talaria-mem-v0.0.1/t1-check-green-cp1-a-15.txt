@@ -1,0 +1,27 @@
+task=T1
+phase=CHECK-GREEN
+tested_source_commit=51e2a727ff214c89ddb9fa6e27ece3d7f4420b5f
+tested_source_tree=923a63f359ec8be92b341b340f9465772557ebe8
+command=make check
+command_sha256=4a5b5cf7d4522d9fa9333a49af09b49b60b3cbcab91159faaa058aae59154d84
+fixture=testdata/bootstrap/untracked-binary-or-temp.json
+fixture_sha256=5c7f06c57403c11d03fb4581399b284e46526bdee083e63e4a1b4905c7f558cb
+expected_exit=0
+actual_exit=0
+stdout_bytes=341
+stdout_sha256=5035552ab36b4eb994d5f800327e5d8a2facaa53848b41e68a29b3c5e28f9d41
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+go test ./...
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.205s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	(cached)
+go test -race ./...
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	1.343s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	(cached)
+go vet ./...
+go generate ./...
+stdout_end
+stderr_begin
+stderr_end
+assertion=make check leaves no source-tree binary or temporary file; fixture decoded as source-tree cleanliness case

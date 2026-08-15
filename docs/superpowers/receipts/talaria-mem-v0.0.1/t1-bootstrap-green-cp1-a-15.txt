@@ -1,0 +1,24 @@
+task=T1
+phase=GREEN
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=51e2a727ff214c89ddb9fa6e27ece3d7f4420b5f
+tested_source_tree=923a63f359ec8be92b341b340f9465772557ebe8
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil
+command_sha256=fa88f266f3eee1ac210f9b4320fbe1f47c745a8596fe2b7ddac96264b8798588
+fixture=testdata/bootstrap/unknown-command.json
+fixture_sha256=74ab498610c189773354ac26bd13638b229fe53ce2f7be1a4f870445ec432674
+expected_exit=0
+actual_exit=0
+stdout_bytes=136
+stdout_sha256=928543fe5c4514e4922e2b96208c430c23121d8f1a909a7d1d75da297ee530a0
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.357s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.196s
+stdout_end
+stderr_begin
+stderr_end
+assertion=unknown command returns usage error, help succeeds, no files created; fixture decoded by TestBootstrapGREENConsumesUnknownCommandFixture
