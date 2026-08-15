@@ -1,0 +1,4 @@
+{
+  "case": "missing-entrypoint",
+  "expected": "Run and FixedClock are undefined before bootstrap implementation"
+}
