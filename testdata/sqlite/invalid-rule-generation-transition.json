@@ -1,0 +1,5 @@
+{
+  "phase": "rollback",
+  "live_mutation_started": true,
+  "expected": "constraint failure"
+}

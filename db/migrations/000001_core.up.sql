@@ -1,0 +1,124 @@
+PRAGMA auto_vacuum = INCREMENTAL;
+
+CREATE TABLE workspaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    revision_watermark INTEGER NOT NULL DEFAULT 0 CHECK (revision_watermark >= 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE workspace_bindings (
+    binding_key TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
+    binding_kind TEXT NOT NULL CHECK (binding_kind IN ('explicit', 'git_remote', 'root_fingerprint', 'absolute_path')),
+    first_inference_warned INTEGER NOT NULL DEFAULT 0 CHECK (first_inference_warned IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE workspace_redirects (
+    source_workspace_id TEXT PRIMARY KEY REFERENCES workspaces(id) ON DELETE RESTRICT,
+    target_workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
+    created_at TEXT NOT NULL,
+    CHECK (source_workspace_id <> target_workspace_id)
+) STRICT;
+
+CREATE TABLE memories (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE RESTRICT,
+    user_global INTEGER NOT NULL DEFAULT 0 CHECK (user_global IN (0, 1)),
+    kind TEXT NOT NULL CHECK (kind IN ('state', 'procedure', 'failure', 'standing_instruction')),
+    trust TEXT NOT NULL CHECK (trust IN ('verified', 'unverified')),
+    lifecycle TEXT NOT NULL CHECK (lifecycle IN ('active', 'quarantined', 'forgotten', 'purged')),
+    current_revision_id TEXT,
+    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    CHECK ((user_global = 1 AND workspace_id IS NULL) OR (user_global = 0 AND workspace_id IS NOT NULL))
+) STRICT;
+
+CREATE TABLE memory_revisions (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    revision_number INTEGER NOT NULL CHECK (revision_number > 0),
+    kind TEXT NOT NULL CHECK (kind IN ('state', 'procedure', 'failure', 'standing_instruction')),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tags_json TEXT NOT NULL,
+    resolution_state TEXT,
+    trust TEXT NOT NULL CHECK (trust IN ('verified', 'unverified')),
+    lifecycle TEXT NOT NULL CHECK (lifecycle IN ('active', 'quarantined', 'forgotten', 'purged')),
+    provenance_actor TEXT NOT NULL DEFAULT '',
+    provenance_source TEXT NOT NULL DEFAULT '',
+    provenance_labels_json TEXT NOT NULL DEFAULT '[]',
+    source_locator TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE (memory_id, revision_number),
+    CHECK (
+        (kind = 'failure' AND resolution_state IS NOT NULL AND resolution_state IN ('open', 'resolved')) OR
+        (kind <> 'failure' AND resolution_state IS NULL)
+    )
+) STRICT;
+
+CREATE UNIQUE INDEX memory_revisions_memory_id_id
+    ON memory_revisions(memory_id, id);
+
+CREATE TRIGGER memories_current_revision_insert
+BEFORE INSERT ON memories
+WHEN NEW.current_revision_id IS NOT NULL
+BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM memory_revisions
+        WHERE id = NEW.current_revision_id AND memory_id = NEW.id
+    ) THEN RAISE(ABORT, 'invalid current revision') END;
+END;
+
+CREATE TRIGGER memories_current_revision_update
+BEFORE UPDATE OF current_revision_id ON memories
+WHEN NEW.current_revision_id IS NOT NULL
+BEGIN
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM memory_revisions
+        WHERE id = NEW.current_revision_id AND memory_id = NEW.id
+    ) THEN RAISE(ABORT, 'invalid current revision') END;
+END;
+
+CREATE TABLE memory_aliases (
+    alias_memory_id TEXT PRIMARY KEY,
+    canonical_memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE RESTRICT,
+    created_at TEXT NOT NULL,
+    CHECK (alias_memory_id <> canonical_memory_id)
+) STRICT;
+
+CREATE VIRTUAL TABLE memory_fts USING fts5(
+    title,
+    content,
+    tags,
+    memory_id UNINDEXED,
+    tokenize='unicode61 remove_diacritics 2'
+);
+
+INSERT INTO memory_fts(memory_fts, rank) VALUES('secure-delete', 1);
+
+CREATE TABLE outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope_id TEXT NOT NULL,
+    revision_watermark INTEGER NOT NULL CHECK (revision_watermark >= 0),
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    next_attempt_at TEXT,
+    safe_error TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE (scope_id, revision_watermark)
+) STRICT;
+
+CREATE TABLE projection_state (
+    scope_id TEXT PRIMARY KEY,
+    revision_watermark INTEGER NOT NULL DEFAULT 0 CHECK (revision_watermark >= 0),
+    status TEXT NOT NULL CHECK (status IN ('pending', 'ready', 'drifted', 'blocked', 'rebuilding')),
+    fingerprint TEXT NOT NULL DEFAULT '',
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    next_attempt_at TEXT,
+    safe_error TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+) STRICT;

@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS projection_state;
+DROP TABLE IF EXISTS outbox;
+DROP TABLE IF EXISTS memory_fts;
+DROP TABLE IF EXISTS memory_aliases;
+DROP TRIGGER IF EXISTS memories_current_revision_update;
+DROP TRIGGER IF EXISTS memories_current_revision_insert;
+DROP INDEX IF EXISTS memory_revisions_memory_id_id;
+DROP TABLE IF EXISTS memory_revisions;
+DROP TABLE IF EXISTS memories;
+DROP TABLE IF EXISTS workspace_redirects;
+DROP TABLE IF EXISTS workspace_bindings;
+DROP TABLE IF EXISTS workspaces;
