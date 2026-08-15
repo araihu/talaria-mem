@@ -2,31 +2,317 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/guilhermecastro/talaria-mem/internal/domain"
 	"github.com/guilhermecastro/talaria-mem/internal/testutil"
 )
 
-func TestSchemaActivationJournalConstraint(t *testing.T) {
-	var fixture struct {
-		Phase               string `json:"phase"`
-		LiveMutationStarted bool   `json:"live_mutation_started"`
-		Expected            string `json:"expected"`
+func openTestDB(t *testing.T) *DB {
+	t.Helper()
+	database, err := Open(context.Background(), filepath.Join(t.TempDir(), "talaria.db"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	testutil.ReadJSONFixture(t, &fixture, "sqlite", "invalid-rule-generation-transition.json")
-	if fixture.Phase != "rollback" || !fixture.LiveMutationStarted || fixture.Expected == "" {
-		t.Fatalf("unexpected schema fixture: %+v", fixture)
+	t.Cleanup(func() {
+		if err := database.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return database
+}
+
+func TestSchema(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+
+	for pragma, want := range map[string]int{
+		"foreign_keys":  1,
+		"secure_delete": 1,
+		"auto_vacuum":   2,
+	} {
+		var got int
+		if err := database.SQL().QueryRowContext(ctx, "PRAGMA "+pragma).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("PRAGMA %s = %d, want %d", pragma, got, want)
+		}
 	}
-	database, err := Open(context.Background(), filepath.Join(t.TempDir(), "schema.db"))
+	var journalMode string
+	if err := database.SQL().QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&journalMode); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(journalMode, "wal") {
+		t.Fatalf("PRAGMA journal_mode = %q, want WAL", journalMode)
+	}
+
+	wantTables := []string{
+		"workspaces", "workspace_bindings", "workspace_redirects", "memory_aliases",
+		"memories", "memory_revisions", "memory_fts", "usage_daily", "usage_lifetime",
+		"outbox", "projection_state", "skill_promotions", "deletion_receipts",
+		"purge_operations", "managed_backups", "idempotency_requests", "migration_journal",
+		"rule_activation_journal",
+	}
+	for _, table := range wantTables {
+		var count int
+		if err := database.SQL().QueryRowContext(ctx,
+			"SELECT count(*) FROM sqlite_master WHERE (type = 'table' OR type = 'view') AND name = ?", table,
+		).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Errorf("table %s count = %d, want 1", table, count)
+		}
+	}
+}
+
+func TestSchemaResolutionStateConstraint(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+	seedMemory := func(id, kind string) {
+		t.Helper()
+		_, err := database.SQL().ExecContext(ctx, `
+			INSERT INTO workspaces(id, name, revision_watermark, created_at, updated_at)
+			VALUES ('018f1f61-7b5c-7abc-8def-1123456789ab', 'workspace', 0,
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')
+			ON CONFLICT(id) DO NOTHING`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = database.SQL().ExecContext(ctx, `
+			INSERT INTO memories(id, workspace_id, user_global, kind, trust, lifecycle, created_at, updated_at)
+			VALUES (?, '018f1f61-7b5c-7abc-8def-1123456789ab', 0, ?, 'verified', 'active',
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`, id, kind)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	seedMemory("018f1f61-7b5c-7abc-8def-0123456789ab", "failure")
+	if _, err := database.SQL().ExecContext(ctx, `
+		INSERT INTO memory_revisions(id, memory_id, revision_number, kind, title, content,
+		tags_json, trust, lifecycle, created_at)
+		VALUES ('018f1f61-7b5c-7abc-8def-0123456789ac', '018f1f61-7b5c-7abc-8def-0123456789ab',
+		1, 'failure', 'title', 'body', '[]', 'verified', 'active',
+		'2026-08-15T00:00:00.000000000Z')`); err == nil {
+		t.Fatal("failure revision without resolution_state accepted")
+	}
+
+	seedMemory("018f1f61-7b5c-7abc-8def-0123456789ad", "state")
+	if _, err := database.SQL().ExecContext(ctx, `
+		INSERT INTO memory_revisions(id, memory_id, revision_number, kind, title, content,
+		tags_json, resolution_state, trust, lifecycle, created_at)
+		VALUES ('018f1f61-7b5c-7abc-8def-0123456789ae', '018f1f61-7b5c-7abc-8def-0123456789ad',
+		1, 'state', 'title', 'body', '[]', 'open', 'verified', 'active',
+		'2026-08-15T00:00:00.000000000Z')`); err == nil {
+		t.Fatal("non-failure revision with resolution_state accepted")
+	}
+}
+
+func TestSchemaRestartPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "restart.db")
+	database, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = database.SQL().Exec(`INSERT INTO workspaces(id, name, revision_watermark, created_at, updated_at)
+		VALUES ('018f1f61-7b5c-7abc-8def-1123456789ab', 'persisted', 0,
+		'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err = Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	if _, err := database.SQL().ExecContext(context.Background(),
-		"INSERT INTO rule_activation_journal(phase, live_mutation_started) VALUES (?, ?)",
-		fixture.Phase, fixture.LiveMutationStarted,
-	); err == nil {
-		t.Fatal("rollback after live mutation accepted; schema constraint missing")
+	var name string
+	if err := database.SQL().QueryRow("SELECT name FROM workspaces").Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "persisted" {
+		t.Fatalf("workspace after restart = %q", name)
+	}
+}
+
+func TestFTSTokenizer(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+	var schema string
+	if err := database.SQL().QueryRowContext(ctx,
+		"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_fts'",
+	).Scan(&schema); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(schema, "tokenize='"+domain.FTS5Tokenizer+"'") {
+		t.Fatalf("FTS schema tokenizer drift: %s", schema)
+	}
+	var secureDelete int
+	if err := database.SQL().QueryRowContext(ctx,
+		"SELECT v FROM memory_fts_config WHERE k = 'secure-delete'",
+	).Scan(&secureDelete); err != nil {
+		t.Fatal(err)
+	}
+	if secureDelete != 1 {
+		t.Fatalf("FTS secure-delete = %d", secureDelete)
+	}
+}
+
+func TestFTSAndUnicodeDiacritic(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ab", "Café", domain.TrustVerified, domain.LifecycleActive)
+	if err := NewRepository(database).RebuildFTS(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	var memoryID string
+	if err := database.SQL().QueryRowContext(ctx,
+		"SELECT memory_id FROM memory_fts WHERE memory_fts MATCH ?", "cafe",
+	).Scan(&memoryID); err != nil {
+		t.Fatal(err)
+	}
+	if memoryID != "018f1f61-7b5c-7abc-8def-0123456789ab" {
+		t.Fatalf("memory ID = %q", memoryID)
+	}
+}
+
+func TestFTSEligibility(t *testing.T) {
+	var fixture struct {
+		ForbiddenRows []string `json:"forbidden_rows"`
+	}
+	testutil.ReadJSONFixture(t, &fixture, "sqlite", "fts-eligibility-drift.json")
+	if len(fixture.ForbiddenRows) != 5 {
+		t.Fatalf("unexpected FTS fixture: %+v", fixture)
+	}
+	database := openTestDB(t)
+	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ab", "eligible", domain.TrustVerified, domain.LifecycleActive)
+	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ac", "unverified", domain.TrustUnverified, domain.LifecycleActive)
+	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ad", "quarantined", domain.TrustVerified, domain.LifecycleQuarantined)
+
+	if err := NewRepository(database).RebuildFTS(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := database.SQL().QueryContext(context.Background(), "SELECT memory_id FROM memory_fts ORDER BY memory_id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) != 1 || ids[0] != "018f1f61-7b5c-7abc-8def-0123456789ab" {
+		t.Fatalf("eligible FTS IDs = %v", ids)
+	}
+}
+
+func seedEligibleMemory(t *testing.T, database *DB, memoryID, title string, trust domain.Trust, lifecycle domain.Lifecycle) {
+	t.Helper()
+	ctx := context.Background()
+	revisionID := memoryID[:24] + "f" + memoryID[25:]
+	err := database.WithTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workspaces(id, name, revision_watermark, created_at, updated_at)
+		VALUES ('018f1f61-7b5c-7abc-8def-1123456789ab', 'workspace', 0, '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')
+		ON CONFLICT(id) DO NOTHING`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO memories(id, workspace_id, user_global, kind, trust, lifecycle, created_at, updated_at)
+		VALUES (?, '018f1f61-7b5c-7abc-8def-1123456789ab', 0, 'state', ?, ?, '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z');
+	`, memoryID, trust, lifecycle); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO memory_revisions(id, memory_id, revision_number, kind, title, content, tags_json, trust, lifecycle, created_at)
+		VALUES (?, ?, 1, 'state', ?, 'body', '[]', ?, ?, '2026-08-15T00:00:00.000000000Z');
+	`, revisionID, memoryID, title, trust, lifecycle); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, "UPDATE memories SET current_revision_id = ? WHERE id = ?", revisionID, memoryID)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestActivationJournal(t *testing.T) {
+	database := openTestDB(t)
+	_, err := database.SQL().ExecContext(context.Background(), `
+		INSERT INTO rule_activation_journal(id, active_generation, phase, revision_watermark,
+		live_mutation_started, quarantined_count, fts_removed_count, outbox_added_count,
+		projected_count, updated_at)
+		VALUES (1, 'rules-v1', 'not-a-phase', 0, 0, 0, 0, 0, 0, '2026-08-15T00:00:00.000000000Z')
+	`)
+	if err == nil {
+		t.Fatal("invalid activation phase accepted")
+	}
+}
+
+type sqliteFullError struct{ calls *int }
+
+func (err sqliteFullError) Error() string { return "database or disk is full" }
+func (err sqliteFullError) Code() int {
+	*err.calls++
+	return 13
+}
+
+func TestSQLiteFull(t *testing.T) {
+	database := openTestDB(t)
+	calls := 0
+	database.beforeCommit = func() error { return sqliteFullError{calls: &calls} }
+	err := database.WithTx(context.Background(), func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO workspaces(id, name, revision_watermark, created_at, updated_at)
+			VALUES ('018f1f61-7b5c-7abc-8def-1123456789ab', 'workspace', 0,
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`)
+		return err
+	})
+	if !domain.IsCode(err, domain.CodeStorageFull) {
+		t.Fatalf("WithTx SQLITE_FULL = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("SQLITE_FULL attempts = %d, want 1", calls)
+	}
+	var count int
+	if err := database.SQL().QueryRow("SELECT count(*) FROM workspaces").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("partial mutation committed: %d workspaces", count)
+	}
+}
+
+func TestTransaction(t *testing.T) {
+	database := openTestDB(t)
+	wantErr := errors.New("injected statement failure")
+	err := database.WithTx(context.Background(), func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`INSERT INTO workspaces(id, name, revision_watermark, created_at, updated_at)
+			VALUES ('018f1f61-7b5c-7abc-8def-1123456789ab', 'workspace', 0,
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`); err != nil {
+			return err
+		}
+		return wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("WithTx error = %v", err)
+	}
+	var count int
+	if err := database.SQL().QueryRow("SELECT count(*) FROM workspaces").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("rollback left %d rows", count)
 	}
 }
