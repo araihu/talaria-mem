@@ -1,0 +1,25 @@
+task=T3-schema
+phase=GREEN
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=dbcfb851ff7d0ccc1eb9645d08ca22d3be803681
+tested_source_tree=0a6e866bf8edf86b62d33102a255da6ffa57e0a8
+parent=T3-red-evidence 0279c17c4814b856656c70f90eaa1bb4f38d9ca7
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite
+command_sha256=1f29e7750b08cae2612110b5f80b33ee0ac5cbead515805cf951695ec70a26b1
+fixture=testdata/sqlite/fts-eligibility-drift.json
+fixture_sha256=53d4b35a53713cf6a214339c426fcf3f849acf175b8c341d781027cc3f49621b
+expected_exit=0
+actual_exit=0
+stdout_bytes=152
+stdout_sha256=ee8cb832a13241bb3c2c86e802cb727d1a30461c33faf5c794856e8f2134892d
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.403s
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	1.988s
+stdout_end
+stderr_begin
+stderr_end
+assertion=schema constraints, FTS tokenizer/secure-delete, transaction rollback and SQLite-full handling pass; FTS drift fixture decoded by TestFTSEligibility
