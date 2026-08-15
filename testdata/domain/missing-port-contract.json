@@ -1,0 +1,4 @@
+{
+  "case": "missing-port-contract",
+  "required": ["KeyDeriver", "ManagedFileStore", "ActivationJournal"]
+}
