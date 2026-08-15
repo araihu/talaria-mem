@@ -36,17 +36,24 @@ T1 bootstrap
   │     ├── T3 SQLite schema/repository
   │     ├── T4 Betterleaks scanner
   │     └── T6 workspace identity
-  ├── T5 application mutation/trust/idempotency (T2,T3,T4)
+  ├── T5 application mutation/trust/idempotency (T2,T3,T4; KeyDeriver port from T2)
   ├── T7 projection/outbox worker (T3,T5)
-  ├── T8 retrieval/usage/pruning (T3,T5)
+  ├── T8 retrieval/usage/pruning (T3,T5; KeyDeriver port from T2)
   ├── T9 security/keys/auth/managed filesystem (T2,T3,T4)
-  ├── T10 HTTP/OpenAPI/CLI/MCP surfaces (T5,T6,T9)
+  ├── T10 HTTP/OpenAPI/CLI/MCP surfaces (T5,T6,T8,T9)
   ├── T11 SessionStart/Codex hook (T5,T6,T8,T9,T10)
   ├── T12 review/import/export/skill promotion (T5,T6,T7,T8,T9,T10)
   ├── T13 purge/backups/migrations/recovery/maintenance lock (T3,T5,T7,T9)
   ├── T14 setup/status/doctor/platform lifecycle (T9,T10,T13)
   └── T15 integrated acceptance and final receipt (T1–T14)
 ```
+
+T2 owns the `KeyDeriver` port and its domain-separated purpose contract. T5 and
+T8 depend only on that port and deterministic test doubles; they never import
+root-key storage or persist raw session identifiers. T9 implements and wires the
+real root-key/HKDF provider before CP3 runtime composition. T10 consumes the
+T8 retrieval service explicitly; no surface task may stub or duplicate search,
+usage, pruning, or explain behavior.
 
 Major checkpoints:
 
@@ -64,7 +71,7 @@ The reconciler may split a task into smaller packets, but may not change these i
 | Area | Owner boundary | Files introduced or owned |
 | --- | --- | --- |
 | Bootstrap | T1 | `go.mod`, `go.sum`, `cmd/talaria-mem/main.go`, `.github/workflows/ci.yml`, `Makefile`, `.gitignore`, `internal/testutil/` |
-| Domain/ports | T2 | `internal/domain/`, `internal/ports/` |
+| Domain/ports | T2 | `internal/domain/`, `internal/ports/`, including the `KeyDeriver` port |
 | Canonical SQL | T3 | `db/migrations/`, `db/queries/`, `db/sqlc.yaml`, `internal/adapters/sqlite/` |
 | Scanner | T4 | `internal/scanner/`, `testdata/secrets/` |
 | Application | T5 | `internal/application/` mutation/trust/idempotency files |
@@ -112,22 +119,23 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 **Files:**
 
-- Create: `internal/domain/memory.go`, `internal/domain/revision.go`, `internal/domain/workspace.go`, `internal/domain/errors.go`, `internal/domain/limits.go`, `internal/ports/repository.go`, `internal/ports/scanner.go`, `internal/ports/projector.go`, `internal/ports/clock.go`.
+- Create: `internal/domain/memory.go`, `internal/domain/revision.go`, `internal/domain/workspace.go`, `internal/domain/errors.go`, `internal/domain/limits.go`, `internal/ports/repository.go`, `internal/ports/scanner.go`, `internal/ports/projector.go`, `internal/ports/clock.go`, `internal/ports/keys.go`.
 - Test: matching `_test.go` files in `internal/domain/` and `internal/ports/`.
 
 **Interfaces:**
 
 - Define `type MemoryKind string` with `state`, `procedure`, `failure`, and `standing_instruction`.
-- Define `type Trust string` with `verified` and `unverified`; `type Lifecycle string` with `active`, `quarantined`, `forgotten`, and `purged`.
-- Define immutable `MemoryRevision`, current-pointer `Memory`, `Workspace`, `WorkspaceRedirect`, `MemoryAlias`, `Provenance`, and `RevisionRef` values using UUIDv7 string IDs and UTC nanosecond timestamps.
+- Define `type Trust string` with `verified` and `unverified`; `type Lifecycle string` with `active`, `quarantined`, `forgotten`, and `purged`; and failure-only `type ResolutionState string` with `open` and `resolved`.
+- Define immutable `MemoryRevision`, current-pointer `Memory`, `Workspace`, `WorkspaceRedirect`, `MemoryAlias`, `Provenance`, and `RevisionRef` values using UUIDv7 string IDs and UTC nanosecond timestamps. A failure revision defaults to `open`, accepts only the versioned `ResolutionState`, and every other kind rejects that field.
 - Define `NormalizeV1(kind, title, content string, tags []string) (string, error)` for valid UTF-8, NFC, CRLF/CR-to-LF conversion, stable sorted canonical tags, and exact duplicate comparison.
-- Define `MemoryRepository`, `Scanner`, `Projector`, and `Clock` ports without interfaces for non-replaceable helpers.
+- Define `MemoryRepository`, `Scanner`, `Projector`, and `Clock` ports without interfaces for non-replaceable helpers. Define `KeyDeriver` for versioned, domain-separated derivation of session, idempotency, and backup-manifest keys; callers receive derived bytes only.
+- Define exact shared limits: at most eight concurrent reads, one writer, a two-second FTS deadline, and a five-second mutation deadline excluding explicit maintenance operations.
 - Define typed errors for validation, not-found, revision conflict, idempotency conflict, secret refusal, quarantine, timeout, unavailable, and maintenance lock failures.
 
-- [ ] Write table tests for every enum, byte limit, normalization case, duplicate-key rejection contract, and error classification.
-- [ ] Run focused domain tests and capture RED failures.
+- [ ] Write table tests for every enum, failure-only `ResolutionState` validation and transition preconditions, byte limit, exact concurrency/deadline limit, normalization case, duplicate-key rejection contract, `KeyDeriver` purpose separation, and error classification.
+- [ ] Run `go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1' -count=1`; capture RED failures.
 - [ ] Implement the smallest immutable value types and ports.
-- [ ] Run focused tests, `go vet`, and a compile-only package check; capture GREEN output.
+- [ ] Run `go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1' -count=1`, `go vet ./internal/domain ./internal/ports`, and a compile-only package check; capture GREEN output at `docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-green.txt`.
 - [ ] Commit `feat: define memory and workspace domain contracts`.
 
 ### Task 3: Build SQLite schema, migrations, FTS, repository, and transaction primitives
@@ -143,10 +151,10 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 **Interfaces:**
 
 - Create/open database with WAL, foreign keys, `secure_delete=ON`, incremental-vacuum capability, and FTS5 `secure-delete=1`.
-- Implement exactly the logical tables in specification section 8, including workspaces/bindings/redirects/aliases, memories/revisions, `memory_fts`, usage, outbox, projection state, promotions, deletion receipts, purge operations, managed backups, idempotency, and migration journal.
+- Implement exactly the logical tables in specification section 8, including workspaces/bindings/redirects/aliases, memories/revisions, failure-only `resolution_state` constraints, `memory_fts`, usage, outbox, projection state, promotions, deletion receipts, purge operations, managed backups, idempotency, and migration journal.
 - Implement repository methods `CreateRevision`, `MoveCurrentRevision`, `ReplaceFTSRow`, `AppendOutbox`, `ReadCurrent`, `RebuildFTS`, and `WithTx` with no independent adapter mutation path.
 
-- [ ] Write tests for schema creation, restart persistence, FTS eligibility predicate, transaction rollback, foreign keys, duplicate IDs, and injected SQL failure.
+- [ ] Write tests for schema creation, restart persistence, failure `resolution_state` constraints, FTS eligibility predicate, transaction rollback, foreign keys, duplicate IDs, and injected SQL failure.
 - [ ] Run `go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS' -count=1`; capture RED.
 - [ ] Write migrations and sqlc queries; run migration up/down against temporary databases.
 - [ ] Generate sqlc output and run focused tests plus `go test -race ./internal/adapters/sqlite`; capture GREEN.
@@ -159,7 +167,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 **Files:**
 
-- Create: `internal/scanner/betterleaks.go`, `internal/scanner/config.go`, `internal/scanner/errors.go`, reviewed pinned rule configuration under `internal/scanner/rules/`, and scanner fixtures under `testdata/secrets/`.
+- Create: `internal/scanner/betterleaks.go`, `internal/scanner/config.go`, `internal/scanner/errors.go`, `internal/scanner/rule_upgrade.go`, reviewed pinned rule configuration under `internal/scanner/rules/`, and scanner fixtures under `testdata/secrets/`.
 - Test: `internal/scanner/*_test.go`.
 
 **Interfaces:**
@@ -167,11 +175,12 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Implement `type Scanner interface { Scan(ctx context.Context, fields []TextField) ScanResult }` from T2 using Betterleaks as the only provider.
 - `ScanResult` must distinguish clean, finding, uncertain, timeout, panic, cancellation, and scanner error without returning content or match fragments.
 - Pin Betterleaks module and reviewed rules; disable provider validation and every network feature in code and configuration.
+- Expose explicit rule-set upgrade and full active-data rescan through a scanner-owned port. Comparative fixtures gate the upgrade; readiness remains false during rescan and projection rebuild, and a failed or uncertain rescan leaves the prior rule set active. No upgrade path may enable provider validation or network access.
 
 - [ ] Write the full boundary matrix test fixture for title, content, tags, provenance labels, source locator, read paths, export, projection, skill promotion, logs, and errors.
-- [ ] Run the matrix before implementation; capture RED for a clean fixture and each fail-closed state.
+- [ ] Run `go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1`; capture RED for a clean fixture, each fail-closed state, comparative rule fixture, and readiness transition.
 - [ ] Implement Betterleaks adapter, panic/timeout containment, safe offsets/rule IDs, and no reversible redaction map.
-- [ ] Run scanner tests with network-disabled settings and assert canary absence from logs/errors; capture GREEN.
+- [ ] Run `go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1` with network-disabled settings and assert canary absence from logs/errors; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t4-scanner-green.txt`.
 - [ ] Commit `feat: embed fail-closed betterleaks scanner`.
 
 ### Task 5: Implement atomic application mutations, trust transitions, review queue, and idempotency
@@ -187,13 +196,15 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 - Implement `Create`, `Update`, `Confirm`, `Pin`, `Forget`, `Restore`, `ReviewUnverified`, and `Explain` application methods accepting caller, workspace, expected revision, idempotency key, and bounded request values.
 - Enforce the normative trust matrix: default-unverified writes; CLI `--verified` only; MCP/import no override; confirmation only for an exact revision; standing instructions only through CLI verified add/update.
+- Enforce failure-only `resolution_state`: default `open`, expected-revision checked transitions to `resolved`, rejection for all other kinds, and inclusion of open failures in SessionStart/pruning protection.
 - Perform scan, immutable revision/tombstone, current pointer, FTS, and outbox updates in one transaction; failed scan/conflict performs none.
 - Store only HMAC-derived session identifiers and domain-separated idempotency digests; never store raw session IDs, query text, content, or secret fragments.
+- Retain each idempotency key, operation, digest, target IDs, and safe result for exactly 24 hours; cleanup after downtime is bounded and deterministic, and replay/conflict behavior is durable across restart.
 
-- [ ] Write tests for each actor/operation matrix cell, exact-revision race, all-or-nothing scanner refusal, review pagination, idempotency replay/conflict, tombstone restore, and safe metadata responses.
-- [ ] Run focused tests and capture RED.
+- [ ] Write tests for each actor/operation matrix cell, failure-state transition/rejection, exact-revision race, all-or-nothing scanner refusal, review pagination, idempotency replay/conflict/24-hour expiry/restart cleanup, tombstone restore, and safe metadata responses.
+- [ ] Run `go test ./internal/application -run 'TestTrustMatrix|TestResolutionState|TestIdempotencyRetention|TestAtomicMutation' -count=1`; capture RED.
 - [ ] Implement application orchestration using the SQLite and scanner ports.
-- [ ] Run focused tests, race tests, and transaction rollback fixtures; capture GREEN.
+- [ ] Run `go test ./internal/application -run 'TestTrustMatrix|TestResolutionState|TestIdempotencyRetention|TestAtomicMutation' -count=1`, race tests, and transaction rollback fixtures; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t5-application-green.txt`.
 - [ ] Commit `feat: implement atomic memory application services`.
 
 ### Task 6: Implement workspace inference, binding, normalization, merge, aliases, and redirects
@@ -253,13 +264,13 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 - Build parameter-bound FTS5 MATCH expressions from NFC literal terms only; never accept raw FTS operators or SQL fragments.
 - Implement raw BM25 weights `(5.0, 1.0, 2.0, 0.0)`, normalized relevance, freshness, usage cap, combined cap, deterministic tie-breakers, and explainable score components using injected UTC clock and float64.
-- Record paired opportunities and at-most-once-per-consumer-session hits; maintain 90-day detailed buckets, lifetime counts, and bounded cleanup.
+- Record paired opportunities and at-most-once-per-consumer-session hits through the T2 `KeyDeriver` port; maintain 90-day detailed buckets, lifetime counts, bounded cleanup, and protect failure memories whose `resolution_state` is `open`.
 - Implement the exact Wilson upper-bound formula with `z = 1.64485362695`, 30-day/20-opportunity grace, default 5% threshold, protection precedence, `--include-verified`, and forget-only apply.
 
 - [ ] Write tests for lexical miss rescue prohibition, score math, caps, tie ordering, injected time, session deduplication, opportunity invariant, 90-day retention, Wilson fixtures, protection overrides, and explain output.
-- [ ] Run numeric and retrieval fixtures and capture RED.
+- [ ] Run `go test ./internal/retrieval -run 'TestSearch|TestUsage|TestPruning|TestResolutionProtection' -count=1`; capture RED.
 - [ ] Implement retrieval and pruning services against the canonical repository.
-- [ ] Run focused tests, race tests, and deterministic repeatability checks; capture GREEN.
+- [ ] Run `go test ./internal/retrieval -run 'TestSearch|TestUsage|TestPruning|TestResolutionProtection' -count=1`, race tests, and deterministic repeatability checks; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t8-retrieval-green.txt`.
 - [ ] Commit `feat: add lexical retrieval usage and pruning scores`.
 
 ### Task 9: Implement root keys, HMAC subkeys, bearer authentication, and managed filesystem
@@ -273,20 +284,20 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 **Interfaces:**
 
-- Store one protected root key outside the database rollback unit; derive fixed-version HKDF-SHA256 purpose subkeys for sessions, idempotency, and backup manifests.
+- Store one protected root key outside the database rollback unit; implement the T2 `KeyDeriver` port with fixed-version HKDF-SHA256 purpose subkeys for sessions, idempotency, and backup manifests.
 - Keep bearer token independent; implement constant-time comparison and token-only rotation.
-- Enforce literal `127.0.0.1`/`::1`, configured Host, Authorization Bearer only, Origin policy, no forwarding headers, JSON mutation content types, body/concurrency/time bounds, and no generic outbound client.
+- Enforce literal `127.0.0.1`/`::1`, configured Host, Authorization Bearer only, Origin policy, no forwarding headers, JSON mutation content types, exact eight-reader/one-writer and two-/five-second bounds, and no generic outbound client.
 - Enforce owner/mode/no-follow/no-clobber/same-directory fsync/rename/fsync semantics for all managed bytes and safe fingerprints for forced replacement.
 
-- [ ] Write tests for key derivation separation/version, loss/corruption readiness failure, token rotation, every auth matrix, Host/Origin/query/cookie/forwarding rejection, denied egress, symlink/mode/owner/no-clobber behavior, and safe diagnostics.
+- [ ] Write tests for key derivation separation/version, loss/corruption readiness failure, token rotation, every auth matrix, Host/Origin/query/cookie/forwarding rejection, denied egress for every daemon operation, process-specific no-`connect` proof, separate CLI/hook/MCP-client literal-loopback proof, dependency/static reachability audit, scanner-network configuration lockout, symlink/mode/owner/no-clobber behavior, and safe diagnostics.
 - [ ] Run security tests and capture RED.
 - [ ] Implement key, auth, and filesystem ports with no content in errors/logs.
-- [ ] Run focused tests, race tests, and process-specific socket/DNS fixtures; capture GREEN.
+- [ ] Run `go test ./internal/security ./internal/adapters/filesystem -run 'TestKeyDerivation|TestAuth|TestNoEgress|TestManagedFilesystem' -count=1`, race tests, process-specific socket/DNS fixtures, and dependency/static reachability checks; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t9-security-green.txt`.
 - [ ] Commit `feat: enforce local trust and managed filesystem boundaries`.
 
 ### Task 10: Implement OpenAPI, HTTP control service, MCP, and CLI contract surfaces
 
-**Dependencies:** T5, T6, T9. **Checkpoint:** CP3. **Gate coverage:** G04, G05, G06, G08, G09, G15, G17, G20, G30.
+**Dependencies:** T5, T6, T8, T9. **Checkpoint:** CP3. **Gate coverage:** G04, G05, G06, G08, G09, G15, G17, G20, G30.
 
 **Files:**
 
@@ -303,7 +314,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - [ ] Write failing contract tests for route/method/content type/auth/error/size limits, MCP schema and workspace scope, CLI exit codes and machine output.
 - [ ] Run focused tests and `vacuum lint`/bundle checks against the initial source; capture RED for missing handlers.
 - [ ] Implement OpenAPI source, bundle/lint, generated code, HTTP adapters, MCP server, and Cobra command routing.
-- [ ] Run generation with a clean diff, focused tests, `go vet`, and race tests; capture GREEN.
+- [ ] Run generation with a clean diff, `go test ./internal/adapters/http ./internal/adapters/mcp ./internal/cli -run 'TestContract|TestMCP|TestCLI' -count=1`, `go vet`, and race tests; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t10-surfaces-green.txt`.
 - [ ] Commit `feat: expose authenticated http mcp and cli contracts`.
 
 ### Task 11: Implement Codex SessionStart and bounded context selection
@@ -367,11 +378,12 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Implement authenticated pre-created pending backup sidecars, `VACUUM INTO`, hash/fsync/rename/complete manifest, inventory mirror, read-only integrity/foreign-key/schema/FTS/application checks, and startup reconciliation of complete/partial/orphan/unauthenticated entries.
 - Apply forward-only transactional migrations with exact partial-version journal, unready state on failure, restart resume, verified backup, and no `VACUUM` inside ordinary migration.
 - Implement offline restore under one global lifecycle/database lock with daemon-stop verification, sidecar identity/hash/mode/integrity checks, same-directory replacement, inventory rebuild, and startup eligibility checks.
+- Run bounded, deterministic startup cleanup of idempotency rows older than the 24-hour retention window without touching newer replay/conflict records; cleanup is covered by restart and downtime fixtures.
 
-- [ ] Write failpoint tests at every purge, backup, inventory, migration, restore, lock, and startup boundary before production code.
+- [ ] Write failpoint tests at every purge, backup, inventory, migration, restore, lock, idempotency-cleanup, and startup boundary before production code.
 - [ ] Run failpoints and capture RED.
 - [ ] Implement maintenance state machine and recovery protocol using repository/filesystem/key ports.
-- [ ] Run crash-resume, concurrent daemon, denied readiness, WAL/journal, inventory, backup authentication, schema/FTS, and restore tests; capture GREEN.
+- [ ] Run crash-resume, concurrent daemon, denied readiness, WAL/journal, inventory, backup authentication, schema/FTS, idempotency-cleanup, and restore tests; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t13-maintenance-green.txt`.
 - [ ] Commit `feat: add crash-resumable maintenance and recovery`.
 
 ### Task 14: Implement setup, daemon readiness, doctor/status, token rotation, and platform lifecycle
@@ -387,13 +399,13 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 - Implement foreground/diagnostic daemon, storage/scanner/migration/projection readiness, health vs readiness distinction, bounded startup recovery, and actionable missing-daemon hook error.
 - Implement `setup codex --dry-run|--apply|--remove --dry-run|--apply`, unknown configuration preservation, same-directory backup/fsync/rename/fsync, idempotence, collision refusal, rollback, and installation fingerprint removal.
-- Implement `status`, `doctor`, `token rotate`, database/WAL/freelist sizes, ownership/mode/sidecar/unsafe path diagnostics without content.
+- Implement `status`, `doctor`, `doctor --repair=fts --dry-run|--apply <receipt>`, `token rotate`, database/WAL/freelist sizes, ownership/mode/sidecar/unsafe path diagnostics without content. FTS repair compares row IDs and normalized content hashes, deletes/repopulates only under the global lock, and requires an explicit dry-run receipt.
 - Install macOS LaunchAgent and Linux systemd-user declarations without downloading/upgrading/replacing binaries.
 
-- [ ] Write failing lifecycle/setup tests for dry-run, idempotence, unknown config, collision, rollback, fingerprint removal, readiness blockers, token rotation, and platform file contents.
-- [ ] Run focused tests and capture RED.
+- [ ] Write failing lifecycle/setup tests for dry-run, idempotence, unknown config, collision, rollback, fingerprint removal, readiness blockers, token rotation, FTS repair dry-run/apply and row/hash comparison, and platform file contents.
+- [ ] Run `go test ./internal/lifecycle -run 'TestSetup|TestReadiness|TestDoctorFTSRepair|TestToken|TestPlatform' -count=1`; capture RED.
 - [ ] Implement lifecycle commands, service templates, and readiness wiring.
-- [ ] Run focused tests, race tests, and setup fixture matrix; capture GREEN.
+- [ ] Run `go test ./internal/lifecycle -run 'TestSetup|TestReadiness|TestDoctorFTSRepair|TestToken|TestPlatform' -count=1`, race tests, and setup fixture matrix; capture GREEN at `docs/superpowers/receipts/talaria-mem-v0.0.1/t14-lifecycle-green.txt`.
 - [ ] Commit `feat: add daemon lifecycle setup and diagnostics`.
 
 ### Task 15: Integrated acceptance, compliance, final evidence, and candidate freeze
@@ -409,16 +421,18 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 
 - Bind each acceptance test to a stable gate ID, spec section, exact command, exit code, raw output location, and candidate commit/tree.
 - Produce a specification-to-code traceability matrix covering sections 1–16, every included requirement, every excluded/deferred feature, and every section-14 acceptance gate.
-- Produce final Git identity receipt: base, HEAD, tree, branch, remote SHA, staged/unstaged/untracked status, managed branch/worktree ledgers, tests, review verdicts, and deferred work.
+- Produce a pre-review candidate Git identity receipt: base, HEAD, tree, branch, remote SHA, staged/unstaged/untracked status, managed branch/worktree ledgers, tests, and deferred work. Candidate receipt bytes and candidate source remain immutable after review begins.
+- Produce the final review-verdict receipt in the external control-plane ledger, keyed by the candidate commit/tree and containing both independent verdicts, reviewer identities, exact evidence, and deferred work. Do not commit or alter candidate bytes after either review; this avoids a self-referential receipt and keeps one reviewed identity authoritative.
+- The matrix must include named owner, exact command, negative fixture, and receipt path for: failure-only `resolution_state`; eight-reader/one-writer plus two-/five-second limits; 24-hour idempotency replay/cleanup; `doctor --repair=fts` dry-run/apply row/hash repair; Betterleaks comparative rule upgrade and full active-data rescan/readiness; and denied-egress/no-`connect`/literal-loopback/static-reachability evidence.
 
 - [ ] Build the gate matrix from the approved spec and plan; fail the matrix if a gate lacks an executable test or evidence location.
 - [ ] Run all explicit memory, restart, FTS, SessionStart, transcript canary, trust, review queue, import/MCP, promotion, workspace, merge, revision, projection, scanner, egress, auth, filesystem, key, search, usage, pruning, purge, backup, migration, lock, setup, Vacuum, generated-code, and platform gates.
 - [ ] Run `go test ./...`, `go test -race ./...`, `go vet ./...`, generation diff checks, Vacuum lint/bundle, and explicit-output build checks.
 - [ ] Run final specification-to-code compliance manually with exact section/file/line evidence; classify every item as implemented, intentionally excluded, or blocker.
-- [ ] Freeze candidate; notify both reviewers with the complete review packet and current identity.
-- [ ] Address all findings through correction packets; rerun full affected gates and both reviews after every byte/evidence change.
-- [ ] Require both reviewers to return `ACCEPT` for the same final commit/tree.
-- [ ] Commit `test: prove talaria-mem v0.0.1 acceptance gates` only after evidence is complete.
+- [ ] Commit `test: prove talaria-mem v0.0.1 acceptance gates` with all candidate source, tests, receipts, and compliance evidence before review; record its exact HEAD/tree as the sole candidate identity.
+- [ ] Freeze candidate; stop writers; notify both reviewers with the complete packet and exact candidate identity.
+- [ ] Address findings only through a bounded correction packet, then create a new candidate identity and rerun all affected gates and both reviews. Any byte, generated artifact, or evidence change restarts the freeze.
+- [ ] Require both reviewers to return `ACCEPT` for the same candidate commit/tree; write verdicts only to the external control-plane receipt, never into the reviewed candidate.
 
 ## Acceptance gate traceability
 
@@ -428,7 +442,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 | G01 | Explicit memory survives restart and appears in FTS | T3, T5, T8, T15 |
 | G02 | SessionStart verified-only, precedence, dedup, caps, pins, scanner failure | T8, T11, T15 |
 | G03 | Transcript canary and filesystem-open proof | T11, T15 |
-| G04 | Actor/trust/confirmation/standing-instruction matrix | T5, T10, T11, T12, T15 |
+| G04 | Actor/trust/confirmation/standing-instruction and failure `resolution_state` matrix, including 24-hour idempotency retention | T2, T5, T10, T11, T12, T15 |
 | G05 | Bounded unverified review rediscovery after lost output/restart | T5, T12, T15 |
 | G06 | MCP/import imperative writes remain unverified and absent from context | T5, T10, T11, T12, T15 |
 | G07 | Skill promotion trust and revision/fingerprint receipt | T5, T12, T15 |
@@ -436,15 +450,15 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 | G09 | Binding and transactional merge/normalization/alias/redirect matrix | T6, T10, T15 |
 | G10 | Atomic revision/FTS/outbox mutation and forget/restore | T3, T5, T6, T7, T13, T15 |
 | G11 | Tombstone revision, restore trust, stale conflict, restart | T5, T13, T15 |
-| G12 | FTS active/verified/non-quarantined predicate across all lifecycle paths | T3, T5, T7, T8, T13, T15 |
+| G12 | FTS active/verified/non-quarantined predicate across all lifecycle paths plus `doctor --repair=fts` dry-run/apply row/hash recovery | T3, T5, T7, T8, T13, T14, T15 |
 | G13 | Projection failpoints, deterministic replay, drift quarantine/rebuild | T7, T13, T15 |
 | G14 | Quarantine removes FTS/outbox intent and blocks readiness until scrub | T4, T5, T7, T13, T15 |
-| G15 | Secret fixtures across every content boundary and safe logs/errors | T4, T5, T7, T9, T12, T15 |
-| G16 | Denied egress, no daemon connect path, scanner network disabled | T4, T9, T15 |
+| G15 | Secret fixtures across every content boundary and safe logs/errors, including comparative rule upgrades and full active-data rescan | T4, T5, T7, T9, T12, T14, T15 |
+| G16 | Denied egress for every daemon operation; process-specific no-`connect`, literal-loopback client, dependency/static reachability, and scanner-network lockout evidence | T4, T9, T15 |
 | G17 | Loopback Host/Origin/credential/method/route authentication matrix | T9, T10, T14, T15 |
 | G18 | Managed ownership/mode/no-follow/no-clobber | T9, T12, T14, T15 |
 | G19 | Root key loss, purpose derivation, bearer-only rotation, restore manifest | T9, T13, T14, T15 |
-| G20 | Search/session caps, whole-item omission, metadata limits, safe receipts | T2, T8, T10, T11, T12, T15 |
+| G20 | Search/session caps, eight-reader/one-writer and two-/five-second limits, whole-item omission, metadata limits, safe receipts | T2, T8, T9, T10, T11, T12, T15 |
 | G21 | Usage/opportunity accounting and score explanations | T8, T15 |
 | G22 | Pruning grace, Wilson bound, thresholds, protections, deterministic ordering | T8, T15 |
 | G23 | Crash-resumable purge and complete managed representation cleanup | T5, T7, T9, T13, T15 |
@@ -454,22 +468,22 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 | G27 | Setup dry-run, unknown config, idempotence, collision, rollback, fingerprint removal | T9, T14, T15 |
 | G28 | Vacuum OpenAPI lint/bundle and generated-code checks | T1, T10, T15 |
 | G29 | macOS LaunchAgent and Linux systemd-user declared platform tests | T14, T15 |
-| G30 | Full suite, race, vet, code generation, compliance, clean final identity | T1–T15 |
+| G30 | Full suite, race, vet, code generation, requirement-level evidence matrix, external verdict receipt, and clean immutable candidate identity | T1–T15 |
 
 ## Specification section traceability
 
 | Specification section | Covered by |
 | --- | --- |
 | 1 Purpose and 2 Scope | T1–T15; exclusions frozen in Global Constraints |
-| 3 Trust boundary and invariants | T4, T5, T9, T10, T11, T12, T13, T15 |
+| 3 Trust boundary and invariants | T2, T4, T5, T9, T10, T11, T12, T13, T15 |
 | 4 Runtime architecture, interfaces, SessionStart, lifecycle | T7, T9, T10, T11, T14, T15 |
-| 5 Security, Betterleaks, managed filesystem | T4, T9, T12, T13, T14, T15 |
+| 5 Security, Betterleaks rule upgrade/rescan, managed filesystem | T4, T9, T12, T13, T14, T15 |
 | 6 Workspace identity and merge | T6, T10, T11, T15 |
-| 7 Memory model, trust, lifecycle, purge | T2, T5, T6, T12, T13, T15 |
+| 7 Memory model, trust, failure `resolution_state`, lifecycle, purge | T2, T5, T6, T8, T12, T13, T15 |
 | 8 Canonical storage, transactions, Markdown projection | T3, T5, T7, T13, T15 |
 | 9 Retrieval and ranking | T8, T10, T11, T12, T15 |
 | 10 Pruning | T8, T12, T15 |
-| 11 SQLite operations and migrations | T3, T9, T13, T14, T15 |
+| 11 SQLite operations, FTS repair, and migrations | T3, T9, T13, T14, T15 |
 | 12 MCP and CLI contracts | T5, T10, T11, T12, T14, T15 |
 | 13 Implementation structure | T1–T14 |
 | 14 Acceptance gates | T15 plus the mapped gates above |
@@ -483,5 +497,6 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - [ ] No task depends on undefined types, functions, migration names, or generated artifacts.
 - [ ] Shared files have an explicit reconciler owner.
 - [ ] TDD, no-secret-output, no-network, optimistic revision, FTS eligibility, projection durability, and lifecycle locks are tested before implementation claims.
+- [ ] Candidate receipts and evidence are committed before review; final verdicts live only in the external control-plane receipt keyed to the immutable candidate identity.
 - [ ] The plan contains no `TODO`, `TBD`, “implement later,” “appropriate error handling,” or similar placeholder.
 - [ ] Post-v0.0.1 roadmap work is explicitly excluded.
