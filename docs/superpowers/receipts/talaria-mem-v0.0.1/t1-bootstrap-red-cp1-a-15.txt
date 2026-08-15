@@ -1,0 +1,28 @@
+task=T1
+phase=RED
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=b54ccb49b1640340be84e7d9579031e911a2c139
+tested_source_tree=b131a07fe9bbc0098903a780520167023a07b17e
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1
+command_sha256=deedfb2f1ef08df2dbe93701cc0dbd47a2537446d05b86f10c64cfe7fc838595
+fixture=testdata/bootstrap/missing-entrypoint.json
+fixture_sha256=7aa5fd6fd0ce08eb723d8221cc455d0db3a1ddac230f2db2b4b26725455860c8
+expected_exit=1
+actual_exit=1
+stdout_bytes=292
+stdout_sha256=c54bbf1203967084425612266ab2bccf1012e8d65d22052972ea4346da385986
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+--- FAIL: TestBootstrapREDConsumesMissingEntrypointFixture (0.00s)
+    main_test.go:33: Run(unknown) accepted missing bootstrap behavior
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.191s
+?	github.com/guilhermecastro/talaria-mem/internal/testutil	[no test files]
+FAIL
+stdout_end
+stderr_begin
+stderr_end
+assertion=fixture is decoded and missing bootstrap behavior is asserted; stub Run incorrectly accepts unknown command
