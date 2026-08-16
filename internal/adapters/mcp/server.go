@@ -70,6 +70,7 @@ type Guard interface {
 type ServerConfig struct {
 	Authenticator *security.Authenticator
 	Reader        ReadService
+	Mutator       MutationService
 	Guard         Guard
 }
 
@@ -181,7 +182,7 @@ func (server *Server) serveSDK(writer http.ResponseWriter, request *http.Request
 				writeRPCError(writer, nil, rpcError{Code: -32602, Message: "MCP session is required"})
 				return
 			}
-			if name := rpcToolName(body); name != "" && !isReadTool(name) {
+			if name := rpcToolName(body); name != "" && !isKnownTool(name) {
 				writeRPCError(writer, nil, rpcError{Code: -32601, Message: "tool not found"})
 				return
 			}
@@ -225,6 +226,18 @@ func isReadTool(name string) bool {
 	}
 }
 
+func isKnownTool(name string) bool {
+	if isReadTool(name) {
+		return true
+	}
+	switch name {
+	case "memory_create", "memory_update", "memory_pin", "memory_forget":
+		return true
+	default:
+		return false
+	}
+}
+
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -250,7 +263,7 @@ func (server *Server) dispatch(ctx context.Context, request *http.Request, call 
 	case "initialize":
 		return map[string]any{"protocolVersion": ProtocolVersion, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]string{"name": ServerName, "version": ServerVersion}}, nil
 	case "tools/list":
-		return map[string]any{"tools": ReadToolDefinitions()}, nil
+		return map[string]any{"tools": AllToolDefinitions()}, nil
 	case "tools/call":
 		return server.callTool(ctx, request, call.Params)
 	default:
@@ -266,11 +279,14 @@ func (server *Server) callTool(ctx context.Context, request *http.Request, raw j
 	if len(raw) == 0 || json.Unmarshal(raw, &params) != nil || params.Name == "" {
 		return nil, &rpcError{Code: -32602, Message: "tool name is required"}
 	}
-	if params.Name != "memory_search" && params.Name != "memory_get" && params.Name != "memory_explain" {
+	if params.Name != "memory_search" && params.Name != "memory_get" && params.Name != "memory_explain" && params.Name != "memory_create" && params.Name != "memory_update" && params.Name != "memory_pin" && params.Name != "memory_forget" {
 		return nil, &rpcError{Code: -32601, Message: "tool not found"}
 	}
-	if server.config.Reader == nil {
+	if (params.Name == "memory_search" || params.Name == "memory_get" || params.Name == "memory_explain") && server.config.Reader == nil {
 		return nil, &rpcError{Code: -32002, Message: "retrieval unavailable"}
+	}
+	if params.Name != "memory_search" && params.Name != "memory_get" && params.Name != "memory_explain" {
+		return server.mutationTool(ctx, params.Name, params.Arguments)
 	}
 	session := request.Header.Get("Mcp-Session-Id")
 	if session == "" {
