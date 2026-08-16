@@ -5,8 +5,8 @@ approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
 approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
 implementation_snapshot_commit=00503a4b4dc3aafb9fd9916ea8c57edb09bab262
 implementation_snapshot_tree=2001b2f00ed24353978387c9d61493203057c717
-candidate_parent_commit=e7b3f799d37923f0b7f897ca464f1b4e4afd8494
-candidate_parent_tree=8c91bf4729b2558c60e190f158c0d9ab79b0c4e8
+candidate_parent_commit=19d1243ed40067db49f5c2bd41acf4f6ef544552
+candidate_parent_tree=0703c108401d665d78204a009cdf1aaf28ca6b32
 plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
 spec=docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md sha256=1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5
 
@@ -15,6 +15,7 @@ history_replay=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-15-replay/reco
 history_replay_result=exit=0; nine named RED/GREEN cases verified source commit/tree, literal command, exit, fixture binding, embedded stdout/stderr metadata, and canonicalized captured output; normal Go cache enabled
 history_replay_canonicalization=receipt raw stdout/stderr bytes and SHA are checked exactly; replay comparison normalizes only Go elapsed durations and no-test package spacing
 evidence_correction=T1 CHECK-GREEN and T3 migration GREEN fixture claims removed because cited green tests do not consume those fixtures
+focused_authority_correction=removed no-op TestMigrationCP1A8CrashHelper; retained both A8 behavior tests; added TestMigrationDirtyRecoveryFailsClosedForUnknownStage and TestMigrationDirtyRecoveryFailsClosedAboveTarget; exact list/run each prove 29 top-level tests
 
 receipt=t1-bootstrap-red-cp1-a-15.txt sha256=a85b742eac08272d5ead1bede06575549d78c71401db0ee64aaa4d6ffb7dc792 expected_exit=1 actual_exit=1
 receipt=t1-bootstrap-green-cp1-a-15.txt sha256=f262b0725989108c4eaf8947cbe33596379a6d77be3dad2fa078b1b6b6a0855f expected_exit=0 actual_exit=0
@@ -25,12 +26,14 @@ receipt=t3-sqlite-red-cp1-a-15.txt sha256=c09124bef1f2241ffaef5dce0c36fa61f5e895
 receipt=t3-sqlite-green-cp1-a-15.txt sha256=23e39534d9988bc18a0323cb3136ced247cfe5d510eeed00e781e42bc72840b0 expected_exit=0 actual_exit=0
 receipt=t3-migration-red-cp1-a-15.txt sha256=e5e82d8b10f673b1d49b7690fb26b905ad3961ecc226d12f9e45b8782ae3a714 expected_exit=1 actual_exit=1
 receipt=t3-migration-green-cp1-a-15.txt sha256=370ea0f67dcab9fc71314b6ad6ee4adbf1de297ebf944a8bd14c414430d1c2f7 expected_exit=0 actual_exit=0
+receipt=t3-authority-focused-cp1-final.txt sha256=3df68b5a283d9f7ed31987f30aae7a6a81b19af915492b0273e16e3b9bc55760 expected_exit=0 actual_exit=0 listed_top_level_tests=29 executed_top_level_tests=29
 receipt=t4-scanner-red-cp1-a-15.txt sha256=93ae9b71ec944f8e9aef58ea9d181b1d4aad9940e76324cd62b553a3b874e536 expected_exit=1 actual_exit=1
 receipt=t4-scanner-green-cp1-a-15.txt sha256=9cdd524025c2cc295573576419fe6e0c71f6ff5a701b450fc9cd939ad7be9e5a expected_exit=0 actual_exit=0
 
 gate=focused-t1 command="go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil" exit=0
 gate=focused-t2 command="go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports" exit=0
-gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A12|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A11|TestMigrationCP1A10|TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationRejectsPreJournal)' -count=1 -v" exit=0
+gate=focused-t3-authority-list command="go test ./internal/adapters/sqlite -list '^(TestMigrationCP1A12|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A11|TestMigrationCP1A10|TestMigrationCP1A8AtomicAuthorityInitializationAfterProcessDeath|TestMigrationCP1A8AtomicPreDDLResetAfterProcessDeath|TestMigrationAuthorityCP1A[67]|TestMigrationDirtyRecoveryFailsClosedForUnknownStage|TestMigrationDirtyRecoveryFailsClosedAboveTarget|TestMigrationRoundTrip|TestMigrationRejectsPreJournal).*$' -count=1" exit=0 listed_top_level_tests=29 receipt=t3-authority-focused-cp1-final.txt
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A12|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A11|TestMigrationCP1A10|TestMigrationCP1A8AtomicAuthorityInitializationAfterProcessDeath|TestMigrationCP1A8AtomicPreDDLResetAfterProcessDeath|TestMigrationAuthorityCP1A[67]|TestMigrationDirtyRecoveryFailsClosedForUnknownStage|TestMigrationDirtyRecoveryFailsClosedAboveTarget|TestMigrationRoundTrip|TestMigrationRejectsPreJournal).*$' -count=1 -v" exit=0 executed_top_level_tests=29 receipt=t3-authority-focused-cp1-final.txt
 gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
 gate=focused-t4 command="TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1" exit=0
 gate=full-test command="GOCACHE=/tmp/talaria-mem-cp1-final-go-cache go test ./..." exit=0
