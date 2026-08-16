@@ -386,7 +386,11 @@ func hasCredentialInQuery(query *url.URL) bool {
 	if query == nil {
 		return false
 	}
-	for name := range query.Query() {
+	values, err := url.ParseQuery(query.RawQuery)
+	if err != nil {
+		return true
+	}
+	for name := range values {
 		if _, found := credentialNames[strings.ToLower(name)]; found {
 			return true
 		}
