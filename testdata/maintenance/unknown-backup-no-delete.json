@@ -1,0 +1,7 @@
+{
+  "fixture": "unknown-backup-no-delete",
+  "entry": "unmanaged.db",
+  "expected_startup_action": "record_cleanup_candidate",
+  "expected_delete": false,
+  "content_output": false
+}

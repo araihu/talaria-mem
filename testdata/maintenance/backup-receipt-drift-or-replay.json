@@ -1,0 +1,5 @@
+{
+  "fixture": "backup-receipt-drift-or-replay",
+  "cases": ["path_fingerprint_drift", "expired_receipt", "single_use_replay"],
+  "expected_mutation": false
+}

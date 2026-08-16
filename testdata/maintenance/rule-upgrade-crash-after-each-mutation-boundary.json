@@ -1,0 +1,5 @@
+{
+  "fixture": "rule-upgrade-crash-after-each-mutation-boundary",
+  "phases": ["pending", "quiesced", "rescanning", "quarantining", "live_mutation_started", "projection_rebuild", "active"],
+  "expected_content_output": false
+}

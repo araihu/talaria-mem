@@ -1,0 +1,5 @@
+{
+  "fixture": "backup-reconcile-effect-boundary",
+  "phases": ["pre_effect", "quarantine_renamed", "file_fsynced", "deleted", "inventory_rebuilt", "receipt_complete"],
+  "expected_monotonic": true
+}

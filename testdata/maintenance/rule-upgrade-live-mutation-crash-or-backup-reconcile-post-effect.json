@@ -1,0 +1,5 @@
+{
+  "fixture": "rule-upgrade-live-mutation-crash-or-backup-reconcile-post-effect",
+  "rule_upgrade": "retain_quarantine_and_keep_unready",
+  "backup_reconcile": "resume_from_recorded_phase"
+}

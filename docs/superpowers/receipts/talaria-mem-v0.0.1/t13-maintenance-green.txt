@@ -1,0 +1,6 @@
+task=T13
+scope=internal/maintenance
+command=go test ./internal/maintenance -count=1
+expected_exit=0
+negative_fixture=testdata/maintenance/unknown-backup-no-delete.json
+assertions=lock,receipts,backup-inventory,purge,restore,migration,rule-activation
