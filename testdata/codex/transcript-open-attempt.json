@@ -1,0 +1,11 @@
+{
+  "event_id": "event-1",
+  "session_id": "session-1",
+  "hook_name": "SessionStart",
+  "working_directory": "/workspace/repo",
+  "workspace_id": "attacker-selected-workspace",
+  "transcript_path": "/private/fixture/secret-transcript.json",
+  "transcript": {
+    "content": "must never be opened or returned"
+  }
+}
