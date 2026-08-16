@@ -8,8 +8,6 @@ parent=T3-red-evidence 0279c17c4814b856656c70f90eaa1bb4f38d9ca7
 plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
 command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
 command_sha256=e142918193e8847d7851338be3dfdcd80dfe4bc394482f2ebaba694a46d3d216
-fixture=testdata/sqlite/partial-migration-v4.json
-fixture_sha256=0285e9f347ef39973cd4f854aedcff8badcd5e428d2ab0d7f7b5cf354c6cedf1
 expected_exit=0
 actual_exit=0
 stdout_bytes=76
@@ -21,4 +19,4 @@ ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.278s
 stdout_end
 stderr_begin
 stderr_end
-assertion=ApplyMigrations and ApplyDownMigrations round-trip leaves no user tables; partial migration fixture decoded by TestMigrationRoundTrip
+assertion=ApplyMigrations and ApplyDownMigrations round-trip leaves no user tables; no fixture-consumption claim made

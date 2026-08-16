@@ -13,15 +13,15 @@ fixture_sha256=b682090c85494201d75c5a0f34006ba7c352375503c1d448db0034ef07250ac9
 expected_exit=1
 actual_exit=1
 stdout_bytes=295
-stdout_sha256=2c00b97a0ef895781b5abd91a5be2b561d8d2912e40fab927ec37c0e8b13df70
+stdout_sha256=15e95d5fd1afc6ced9d5be55877760730533be389374cbba82999e931c2f1825
 stderr_bytes=0
 stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 stdout_begin
-?	github.com/guilhermecastro/talaria-mem/internal/domain	[no test files]
+?   	github.com/guilhermecastro/talaria-mem/internal/domain	[no test files]
 --- FAIL: TestActivationJournal (0.00s)
     activation_test.go:25: pending to active transition accepted; missing activation contract behavior
 FAIL
-FAIL	github.com/guilhermecastro/talaria-mem/internal/ports	0.363s
+FAIL	github.com/guilhermecastro/talaria-mem/internal/ports	8.214s
 FAIL
 stdout_end
 stderr_begin

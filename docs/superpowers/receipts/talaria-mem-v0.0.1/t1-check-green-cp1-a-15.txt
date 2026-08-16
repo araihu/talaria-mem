@@ -4,8 +4,6 @@ tested_source_commit=51e2a727ff214c89ddb9fa6e27ece3d7f4420b5f
 tested_source_tree=923a63f359ec8be92b341b340f9465772557ebe8
 command=make check
 command_sha256=4a5b5cf7d4522d9fa9333a49af09b49b60b3cbcab91159faaa058aae59154d84
-fixture=testdata/bootstrap/untracked-binary-or-temp.json
-fixture_sha256=5c7f06c57403c11d03fb4581399b284e46526bdee083e63e4a1b4905c7f558cb
 expected_exit=0
 actual_exit=0
 stdout_bytes=341
@@ -24,4 +22,4 @@ go generate ./...
 stdout_end
 stderr_begin
 stderr_end
-assertion=make check leaves no source-tree binary or temporary file; fixture decoded as source-tree cleanliness case
+assertion=make check passes T1 source-tree cleanliness checks; no fixture-consumption claim made

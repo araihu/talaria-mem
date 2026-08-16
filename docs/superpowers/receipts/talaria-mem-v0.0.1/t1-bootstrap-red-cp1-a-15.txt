@@ -12,15 +12,15 @@ fixture_sha256=7aa5fd6fd0ce08eb723d8221cc455d0db3a1ddac230f2db2b4b26725455860c8
 expected_exit=1
 actual_exit=1
 stdout_bytes=292
-stdout_sha256=c54bbf1203967084425612266ab2bccf1012e8d65d22052972ea4346da385986
+stdout_sha256=920383bca21a5d82e5aad4289728e53dd430174734f4ab95f1ac8339e9e46fe5
 stderr_bytes=0
 stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 stdout_begin
 --- FAIL: TestBootstrapREDConsumesMissingEntrypointFixture (0.00s)
     main_test.go:33: Run(unknown) accepted missing bootstrap behavior
 FAIL
-FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.191s
-?	github.com/guilhermecastro/talaria-mem/internal/testutil	[no test files]
+FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.369s
+?   	github.com/guilhermecastro/talaria-mem/internal/testutil	[no test files]
 FAIL
 stdout_end
 stderr_begin

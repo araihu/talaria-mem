@@ -59,14 +59,100 @@ parent_is "$T4_GREEN_EVIDENCE" "$T4_GREEN"
 [ "$(git rev-parse "$MERGE^1")" = "$T3_GREEN_EVIDENCE" ] || die "merge first parent is not T3 green evidence"
 [ "$(git rev-parse "$MERGE^2")" = "$T4_GREEN_EVIDENCE" ] || die "merge second parent is not T4 green evidence"
 
+receipt_file() {
+	case "$1" in
+		t1-red) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t1-bootstrap-red-cp1-a-15.txt" ;;
+		t1-green) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t1-bootstrap-green-cp1-a-15.txt" ;;
+		t2-red) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-red-cp1-a-15.txt" ;;
+		t2-green) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-green-cp1-a-15.txt" ;;
+		t3-schema-red) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-red-cp1-a-15.txt" ;;
+		t3-migration-red) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t3-migration-red-cp1-a-15.txt" ;;
+		t3-green) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-green-cp1-a-15.txt" ;;
+		t4-red) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t4-scanner-red-cp1-a-15.txt" ;;
+		t4-green) printf '%s\n' "$repo/docs/superpowers/receipts/talaria-mem-v0.0.1/t4-scanner-green-cp1-a-15.txt" ;;
+		*) die "no receipt mapping for $1" ;;
+	esac
+}
+
+receipt_field() {
+	key=$1
+	file=$2
+	sed -n "s/^${key}=//p" "$file" | sed -n '1p'
+}
+
+sha256_file() {
+	shasum -a 256 "$1" | awk '{print $1}'
+}
+
+byte_count() {
+	wc -c <"$1" | tr -d ' '
+}
+
+extract_section() {
+	stream=$1
+	file=$2
+	awk -v begin="${stream}_begin" -v end="${stream}_end" '
+		$0 == begin { inside = 1; next }
+		$0 == end { inside = 0; exit }
+		inside { print }
+	' "$file"
+}
+
+canonicalize_output() {
+	# Go package elapsed times and no-test package spacing vary between runs.
+	sed -E -e 's/[0-9]+(\.[0-9]+)?s/<elapsed>/g' -e 's/ +\t/\t/g' "$1"
+}
+
+verify_stream() {
+	label=$1
+	stream=$2
+	receipt=$3
+	captured=$4
+	receipt_stream="$tmp/$label.receipt.$stream"
+	extract_section "$stream" "$receipt" >"$receipt_stream"
+	declared_bytes=$(receipt_field "${stream}_bytes" "$receipt")
+	declared_sha=$(receipt_field "${stream}_sha256" "$receipt")
+	actual_bytes=$(byte_count "$receipt_stream")
+	actual_sha=$(sha256_file "$receipt_stream")
+	[ "$actual_bytes" = "$declared_bytes" ] || die "$label receipt $stream bytes=$actual_bytes want=$declared_bytes"
+	[ "$actual_sha" = "$declared_sha" ] || die "$label receipt $stream sha=$actual_sha want=$declared_sha"
+	canonicalize_output "$receipt_stream" >"$tmp/$label.receipt.$stream.canonical"
+	canonicalize_output "$captured" >"$tmp/$label.captured.$stream.canonical"
+	cmp -s "$tmp/$label.receipt.$stream.canonical" "$tmp/$label.captured.$stream.canonical" || die "$label $stream differs from receipt capture"
+}
+
+verify_fixture() {
+	label=$1
+	receipt=$2
+	dir=$3
+	fixture=$(receipt_field fixture "$receipt")
+	[ -n "$fixture" ] || return 0
+	case "$fixture" in
+		/*) die "$label fixture path is absolute" ;;
+	esac
+	fixture_path="$dir/$fixture"
+	[ -f "$fixture_path" ] || die "$label fixture missing: $fixture"
+	fixture_sha=$(sha256_file "$fixture_path")
+	declared_sha=$(receipt_field fixture_sha256 "$receipt")
+	[ "$fixture_sha" = "$declared_sha" ] || die "$label fixture sha=$fixture_sha want=$declared_sha"
+	fixture_name=${fixture##*/}
+	rg -l --glob '*.go' --fixed-strings -- "$fixture_name" "$dir" >/dev/null || die "$label fixture not bound to Go test source: $fixture"
+}
+
 run_case() {
 	label=$1
 	commit=$2
 	expected=$3
 	command=$4
 	dir="$tmp/$label"
+	receipt=$(receipt_file "$label")
 	mkdir -p "$dir"
 	git archive "$commit" | tar -x -C "$dir"
+	[ "$(receipt_field tested_source_commit "$receipt")" = "$commit" ] || die "$label receipt source commit mismatch"
+	[ "$(receipt_field tested_source_tree "$receipt")" = "$(tree_for "$commit")" ] || die "$label receipt source tree mismatch"
+	[ "$(receipt_field command "$receipt")" = "$command" ] || die "$label receipt command mismatch"
+	[ "$(receipt_field expected_exit "$receipt")" = "$expected" ] || die "$label receipt expected exit mismatch"
+	verify_fixture "$label" "$receipt" "$dir"
 	set +e
 	(
 		cd "$dir" || exit 1
@@ -75,10 +161,15 @@ run_case() {
 	actual=$?
 	set -e
 	[ "$actual" = "$expected" ] || die "$label exit=$actual want=$expected"
-	printf 'replay=%s commit=%s expected_exit=%s actual_exit=%s stdout_sha256=%s stderr_sha256=%s\n' \
+	[ "$(receipt_field actual_exit "$receipt")" = "$actual" ] || die "$label receipt actual exit mismatch"
+	verify_stream "$label" stdout "$receipt" "$tmp/$label.stdout"
+	verify_stream "$label" stderr "$receipt" "$tmp/$label.stderr"
+	printf 'replay=%s commit=%s expected_exit=%s actual_exit=%s receipt=%s stdout_sha256=%s stderr_sha256=%s fixture=%s\n' \
 		"$label" "$commit" "$expected" "$actual" \
-		"$(shasum -a 256 "$tmp/$label.stdout" | awk '{print $1}')" \
-		"$(shasum -a 256 "$tmp/$label.stderr" | awk '{print $1}')"
+		"$receipt" \
+		"$(sha256_file "$tmp/$label.stdout")" \
+		"$(sha256_file "$tmp/$label.stderr")" \
+		"$(receipt_field fixture "$receipt")"
 }
 
 run_case t1-red "$T1_RED" 1 "go test ./cmd/talaria-mem ./internal/testutil -count=1"
