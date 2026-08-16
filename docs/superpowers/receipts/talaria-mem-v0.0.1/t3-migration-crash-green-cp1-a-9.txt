@@ -1,0 +1,20 @@
+task=cp1-a-9
+phase=GREEN
+scope=T3-migration-crash-before-run
+tested_source_commit=1cc33a4e41f684bb292189b5fe44a32bf222f065
+tested_source_tree=8288356fb82a255f15d8c99daa7efb9198fb54e1
+command=go test ./internal/adapters/sqlite -run '^TestMigrationDirtyRecoveryAfterSetVersionBeforeRun$' -count=1 -v
+expected_exit=0
+actual_exit=0
+fixtures=migration-2,migration-3,true-subprocess-death-after-dirty-SetVersion,before-Run-started-journal,ordinary-open-fail-closed,maintenance-recovery
+controls=failpoint-only-in-test-files;production-db-go-has-no-test-failpoint-or-process-control
+--- raw output ---
+=== RUN   TestMigrationDirtyRecoveryAfterSetVersionBeforeRun
+=== RUN   TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-2
+=== RUN   TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-3
+--- PASS: TestMigrationDirtyRecoveryAfterSetVersionBeforeRun (0.06s)
+    --- PASS: TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-2 (0.03s)
+    --- PASS: TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-3 (0.03s)
+PASS
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.414s
+--- end raw output ---

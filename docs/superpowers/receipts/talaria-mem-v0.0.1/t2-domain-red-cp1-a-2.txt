@@ -1,0 +1,20 @@
+task=cp1-a-2
+scope=T2
+phase=RED
+tested_source_commit=45bfbc1bd6393bdca0d9c06ecf9101f4b557d106
+tested_source_tree=cc5a1a5a67b26c9be2df646713d73750e0ae55a0
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+negative_fixture=testdata/domain/cp1-a-2-active-pending-upgrade.json
+fixture_sha256=5108fbe6cc9387f6e11ea725fc5fd5229e6708d5001a594b74f034a4f843f0d1
+red_harness=cp1_a2_red_test.go in content-addressed rejected-source scratch worktree
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1
+expected_exit=1
+actual_exit=1
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	0.176s
+--- FAIL: TestActivationJournalActiveUpgradeStartIntroducesCandidateAtomically (0.00s)
+    cp1_a2_red_test.go:13: active to pending upgrade start rejected: invalid activation transition active to pending
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/ports	0.472s
+FAIL

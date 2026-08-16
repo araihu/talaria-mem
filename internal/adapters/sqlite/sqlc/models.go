@@ -8,6 +8,22 @@ import (
 	"database/sql"
 )
 
+type ActivationEpochAudit struct {
+	ActivationEpoch          string `json:"activation_epoch"`
+	ActiveGeneration         string `json:"active_generation"`
+	CandidateGeneration      string `json:"candidate_generation"`
+	CandidateRuleFingerprint string `json:"candidate_rule_fingerprint"`
+	Phase                    string `json:"phase"`
+	RevisionWatermark        int64  `json:"revision_watermark"`
+	LiveMutationStarted      int64  `json:"live_mutation_started"`
+	QuarantinedCount         int64  `json:"quarantined_count"`
+	FtsRemovedCount          int64  `json:"fts_removed_count"`
+	OutboxAddedCount         int64  `json:"outbox_added_count"`
+	ProjectedCount           int64  `json:"projected_count"`
+	Completed                int64  `json:"completed"`
+	UpdatedAt                string `json:"updated_at"`
+}
+
 type DeletionReceipt struct {
 	ID               string `json:"id"`
 	OperationID      string `json:"operation_id"`
@@ -87,15 +103,19 @@ type MemoryRevision struct {
 }
 
 type MigrationJournal struct {
-	ID               int64          `json:"id"`
-	TargetVersion    int64          `json:"target_version"`
-	CurrentVersion   int64          `json:"current_version"`
-	FailedVersion    sql.NullInt64  `json:"failed_version"`
-	CompletedVersion sql.NullInt64  `json:"completed_version"`
-	BackupID         sql.NullString `json:"backup_id"`
-	SafeError        string         `json:"safe_error"`
-	StartedAt        string         `json:"started_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	ID                int64          `json:"id"`
+	RunID             string         `json:"run_id"`
+	TargetVersion     int64          `json:"target_version"`
+	CurrentVersion    int64          `json:"current_version"`
+	FailedVersion     sql.NullInt64  `json:"failed_version"`
+	CompletedVersion  sql.NullInt64  `json:"completed_version"`
+	BackupID          sql.NullString `json:"backup_id"`
+	FailureStage      string         `json:"failure_stage"`
+	SchemaFingerprint string         `json:"schema_fingerprint"`
+	Dirty             int64          `json:"dirty"`
+	SafeError         string         `json:"safe_error"`
+	StartedAt         string         `json:"started_at"`
+	UpdatedAt         string         `json:"updated_at"`
 }
 
 type Outbox struct {
@@ -121,6 +141,7 @@ type ProjectionState struct {
 
 type PurgeOperation struct {
 	ID                 string         `json:"id"`
+	OperationIdentity  string         `json:"operation_identity"`
 	OperationKind      string         `json:"operation_kind"`
 	MemoryID           sql.NullString `json:"memory_id"`
 	WorkspaceID        sql.NullString `json:"workspace_id"`
@@ -128,8 +149,10 @@ type PurgeOperation struct {
 	Phase              string         `json:"phase"`
 	ReceiptDigest      []byte         `json:"receipt_digest"`
 	ReceiptConsumed    int64          `json:"receipt_consumed"`
+	ReceiptClaim       string         `json:"receipt_claim"`
 	InventoryWatermark int64          `json:"inventory_watermark"`
 	ResumeCursor       string         `json:"resume_cursor"`
+	PhaseCursor        string         `json:"phase_cursor"`
 	SafeError          string         `json:"safe_error"`
 	CreatedAt          string         `json:"created_at"`
 	UpdatedAt          string         `json:"updated_at"`
@@ -137,22 +160,34 @@ type PurgeOperation struct {
 }
 
 type RuleActivationJournal struct {
-	ID                       int64          `json:"id"`
-	Version                  int64          `json:"version"`
-	ActiveGeneration         string         `json:"active_generation"`
-	CandidateGeneration      sql.NullString `json:"candidate_generation"`
-	Phase                    string         `json:"phase"`
-	RevisionWatermark        int64          `json:"revision_watermark"`
-	CandidateRuleFingerprint string         `json:"candidate_rule_fingerprint"`
-	LastProcessedID          string         `json:"last_processed_id"`
-	LiveMutationStarted      int64          `json:"live_mutation_started"`
-	QuarantinedCount         int64          `json:"quarantined_count"`
-	FtsRemovedCount          int64          `json:"fts_removed_count"`
-	OutboxAddedCount         int64          `json:"outbox_added_count"`
-	ProjectedCount           int64          `json:"projected_count"`
-	ResumeCursor             string         `json:"resume_cursor"`
-	SafeError                string         `json:"safe_error"`
-	UpdatedAt                string         `json:"updated_at"`
+	ID                            int64          `json:"id"`
+	Version                       int64          `json:"version"`
+	ActivationEpoch               string         `json:"activation_epoch"`
+	ActiveGeneration              string         `json:"active_generation"`
+	CandidateGeneration           sql.NullString `json:"candidate_generation"`
+	Phase                         string         `json:"phase"`
+	RevisionWatermark             int64          `json:"revision_watermark"`
+	CandidateRuleFingerprint      string         `json:"candidate_rule_fingerprint"`
+	LastProcessedID               string         `json:"last_processed_id"`
+	LiveMutationStarted           int64          `json:"live_mutation_started"`
+	QuarantinedCount              int64          `json:"quarantined_count"`
+	FtsRemovedCount               int64          `json:"fts_removed_count"`
+	OutboxAddedCount              int64          `json:"outbox_added_count"`
+	ProjectedCount                int64          `json:"projected_count"`
+	ResumeCursor                  string         `json:"resume_cursor"`
+	SafeError                     string         `json:"safe_error"`
+	ComparativeVerified           int64          `json:"comparative_verified"`
+	RescanVerified                int64          `json:"rescan_verified"`
+	MutationVerified              int64          `json:"mutation_verified"`
+	ProjectionVerified            int64          `json:"projection_verified"`
+	ReadinessVerified             int64          `json:"readiness_verified"`
+	CandidateDiscardReverified    int64          `json:"candidate_discard_reverified"`
+	HistoricalLiveMutationStarted int64          `json:"historical_live_mutation_started"`
+	HistoricalQuarantinedCount    int64          `json:"historical_quarantined_count"`
+	HistoricalFtsRemovedCount     int64          `json:"historical_fts_removed_count"`
+	HistoricalOutboxAddedCount    int64          `json:"historical_outbox_added_count"`
+	HistoricalProjectedCount      int64          `json:"historical_projected_count"`
+	UpdatedAt                     string         `json:"updated_at"`
 }
 
 type SkillPromotion struct {

@@ -24,8 +24,12 @@ jobs:
         run: go vet ./...
       - name: Generate and verify
         run: |
+          go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f db/sqlc.yaml
           go generate ./...
-          git diff --exit-code
+          git diff --exit-code -- internal/adapters/sqlite/sqlc
+          git diff --exit-code -- internal/adapters/sqlite/sqlc.manifest
+          sh scripts/check-sqlc-generated.sh
+          git diff --exit-code -- internal/scanner/environment.md
       - name: Build outside source tree
         run: |
           mkdir -p "$RUNNER_TEMP/talaria-mem"

@@ -1,0 +1,9 @@
+task=cp1-a-6
+phase=GREEN
+command=go test ./internal/adapters/sqlite -run 'TestMigrationAuthorityCP1A6|TestMigrationRoundTrip|TestMigrationDirtyRecovery|TestMigrationJournalWriteFailures|TestMigrationRejectsPreJournal' -count=1
+expected_exit=0
+actual_exit=0
+--- raw output ---
+ok   github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite 0.816s
+--- end raw output ---
+controls=explicit-per-run-migration-failpoints,no-production-env-or-os-exit,no-journal-recreation-for-existing-version

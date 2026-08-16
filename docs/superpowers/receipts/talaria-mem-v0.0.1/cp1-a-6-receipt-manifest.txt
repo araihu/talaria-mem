@@ -1,0 +1,34 @@
+task=cp1-a-6
+phase=FROZEN-CANDIDATE
+green_source_commit=9b202a637b2a89778e06d23a0575ff15605cff27
+green_source_tree=96e0feeb2cf04789ae8626de36ac685268e81fa2
+green_source_parent=70b667b083d268a12f797247d34ef1c1943c97a9
+red_source_commit=70b667b083d268a12f797247d34ef1c1943c97a9
+red_source_tree=738fbd7de2bed2f73368fd054fbf96f2ba0bcbdb
+red_overlay_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-6-red-overlay-manifest.txt sha256=631cc01b064bd01d56f1513a807625c0df29ad1c0037dbe9813b1cc979994b9b
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-6-red/reconstruct-red.sh sha256=e5e249585cef08263461071f772bc9b67902a5572a1faf5bca6babb8fe6f82ae
+overlay=internal/adapters/sqlite/cp1_a6_migration_authority_red_test.go sha256=a71ff18710863dff062721fd167a5a12c533e10d93a02851c111653bb53cf349
+
+receipt=t3-migration-red-cp1-a-6.txt sha256=f0f2274bb53329b4317ee3d2b95173fa808310ca928e56c27a421c5e97cc1753 expected_exit=1 actual_exit=1
+receipt=t3-migration-green-cp1-a-6.txt sha256=758edf6f68fa1be99041611a9ab9651151e649860efabfcec05c9e4f2acd18b2 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-red-cp1-a-6.txt sha256=4b3d2ed48e894c3ffe6a3dec7c6aafc68dc168c6ab7e4bfb28c2ecf0ec3a4987 nested_expected_exit=1 nested_actual_exit=1 outer_expected_exit=0 outer_actual_exit=0
+receipt=t3-sqlc-manifest-green-cp1-a-6.txt sha256=04a32c8f7c2f3bffc80ee8b8c650bcdd9dad22b1bb0c807e24ca6e016c5feb4b expected_exit=0 actual_exit=0
+
+gate=focused-t1 command="go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil" exit=0
+gate=focused-t2 command="go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports" exit=0
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run 'TestMigrationAuthorityCP1A6|TestMigrationRoundTrip|TestMigrationDirtyRecovery|TestMigrationJournalWriteFailures|TestMigrationRejectsPreJournal' -count=1" exit=0
+gate=focused-t3-schema command="go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite" exit=0
+gate=focused-t4 command="TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1" exit=0
+gate=full-test-vet command="go test ./... && go vet ./..." exit=0
+gate=full-race command="go test -race ./..." exit=0
+gate=generate command="go generate ./..." exit=0
+gate=tidy command="go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0
+gate=sqlc-negative command="make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1
+gate=make-check command="make check" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+authority=rejects-clean-and-dirty-schema/user authorities above target before mutation; exact one-row protocol; canonical schema_migrations table/index DDL and fingerprint; clean/dirty authority consistency
+journal=only dirty migration-1 pre-DDL may lack journal; existing v1/v2/current-target absence fails closed without recreation; journal writes propagate failures
+failpoints=explicit per-run migrationOptions/migrationFailpoints; no production package globals, environment inspection, or os.Exit
+toolchain=betterleaks-v1.7.4 scanner_network=disabled sqlc-v1.29.0

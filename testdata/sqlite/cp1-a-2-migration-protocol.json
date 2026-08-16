@@ -1,0 +1,4 @@
+{
+  "negative": "ad-hoc migration runner without schema_migrations",
+  "expected": "modernc golang-migrate transactional protocol and partial journal"
+}

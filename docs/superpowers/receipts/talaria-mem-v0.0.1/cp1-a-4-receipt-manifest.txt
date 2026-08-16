@@ -1,0 +1,40 @@
+task=cp1-a-4
+phase=FROZEN-CANDIDATE
+candidate_parent_commit=d1544c9eb52b69bcff6d86eee4add3abf6b663aa
+candidate_parent_tree=55c222f75dcff99915aed05514e0b91f430286b9
+green_source_commit=d1544c9eb52b69bcff6d86eee4add3abf6b663aa
+green_source_tree=55c222f75dcff99915aed05514e0b91f430286b9
+red_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+red_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+red_overlay_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-4-red-overlay-manifest.txt
+red_overlay_manifest_sha256=5d213dd800c93eec7c4c195ea2d35f20807f3e2f2811010d21aa7e32a2f8561f
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-4-red/reconstruct-red.sh
+red_reconstruction_sha256=5b352d9e9b073ddd4167d4e67d9e4fde37f83d6d83982b67342f78b50a5a7237
+
+receipt=t1-bootstrap-red-cp1-a-4.txt sha256=b7e5982e7afeb855b521c07a290ea3db0c768d9682a2a725dfd5afd82f505d0c expected_exit=1 actual_exit=1
+receipt=t2-domain-red-cp1-a-4.txt sha256=ff2ec0da5583eb454dcee40ac79187d7b1600a6e544e5f7873362ace54ee8c27 expected_exit=1 actual_exit=1
+receipt=t3-sqlite-red-cp1-a-4.txt sha256=eb53ca47be8f12543bf9f4b4156a75e05e3a473f850849378e65107fa7d16cfd expected_exit=1 actual_exit=1
+receipt=t3-migration-red-cp1-a-4.txt sha256=118c73bf9c9233983ffa7f2d8861bf60e95a6557b33a1b545019523cc969d0c1 expected_exit=1 actual_exit=1
+receipt=t4-scanner-red-cp1-a-4.txt sha256=34bb792912d1ebc883de75e09b60e9e48b92ea37a50ba6e87306c964834ba53b expected_exit=1 actual_exit=1
+receipt=t1-bootstrap-green-cp1-a-4.txt sha256=5db6046ee8083b7f0d9019cd3287479a7cbc8a45392dc6c6b7118390b255fdc9 expected_exit=0 actual_exit=0
+receipt=t2-domain-green-cp1-a-4.txt sha256=f4d6c679c89d25794631536d87000af6a079c5ecd74daba82cba5c3be1d7733f expected_exit=0 actual_exit=0
+receipt=t3-sqlite-green-cp1-a-4.txt sha256=928f2881c1c8b2487efc2cebf71facd53b38d7c1879c13311a904a613cdb1dee expected_exit=0 actual_exit=0
+receipt=t3-migration-green-cp1-a-4.txt sha256=1d2afa571a8214af6effa3639799a0470f3077e352628d755f3371a4a31fd78f expected_exit=0 actual_exit=0
+receipt=t4-scanner-green-cp1-a-4.txt sha256=4868657af65ec0f620879b932c8a850038a2ab351c50106f017362b800db56fb expected_exit=0 actual_exit=0
+
+gate=focused-t1 command="go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil" exit=0
+gate=focused-t2 command="go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports" exit=0
+gate=focused-t3 command="go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f db/sqlc.yaml && sh scripts/update-sqlc-manifest.sh && go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite" exit=0
+gate=focused-t3-migration command="go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1" exit=0
+gate=focused-t4 command="TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1" exit=0
+gate=full-test-vet command="go test ./... && go vet ./..." exit=0
+gate=full-race command="go test -race ./..." exit=0
+gate=generate command="go generate ./..." exit=0
+gate=tidy command="go mod tidy -diff" exit=0
+gate=sqlc-manifest-and-diff command="sh scripts/check-sqlc-generated.sh && git diff --check" exit=0
+gate=make-check command="make check" exit=0
+
+negative_fixtures=T1:testdata/bootstrap/cp1-a-4-composition-registration.json,T2:testdata/cp1-a-4/red-overlay/internal/ports/cp1_a4_activation_red_test.go,T3-schema:testdata/cp1-a-4/red-overlay/internal/adapters/sqlite/cp1_a4_schema_red_test.go,T3-migration:testdata/cp1-a-4/red-overlay/internal/adapters/sqlite/cp1_a4_migration_red_test.go,T4:testdata/secrets/cp1-a-4-metadata-canary.json
+betterleaks_version=v1.7.4
+scanner_network=disabled
+sqlc_version=v1.29.0

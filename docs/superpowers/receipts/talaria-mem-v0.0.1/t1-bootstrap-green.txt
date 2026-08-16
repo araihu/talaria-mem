@@ -1,0 +1,10 @@
+task=T1
+phase=GREEN
+negative_fixture=testdata/bootstrap/unknown-command.json
+fixture_sha256=74ab498610c189773354ac26bd13638b229fe53ce2f7be1a4f870445ec432674
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.298s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.564s

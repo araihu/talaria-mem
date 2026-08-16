@@ -1,0 +1,48 @@
+task=cp1-a-3
+scope=T1-T4
+correction_parent=1ab97d1c1429ba188c3dd614db015c2d729c9d51
+correction_parent_tree=179bef1465f9c3a7ecb2088ff7181481d8389e4f
+evidence_source_commit=6bb73312b36b8582f26d423f0fd2536a91cef92b
+evidence_source_tree=6eb365a882611272e23fa0a01c08a4ad9e58ba3d
+plan_sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+spec_sha256=1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5
+red_source_commit=1ab97d1c1429ba188c3dd614db015c2d729c9d51
+red_source_tree=179bef1465f9c3a7ecb2088ff7181481d8389e4f
+fixture=t1 testdata/bootstrap/cp1-a-3-missing-output-writer.json sha256=fe74355a2604acbb90f18f537bb852792ae81914b5c0fdaeba1887e846096169
+fixture=t2 testdata/domain/cp1-a-3-activation-epoch.json sha256=c269f7648427c3694097d0ba411d0952ed8249f0ffe726305a77155954dfff30
+fixture=t3-schema testdata/sqlite/cp1-a-3-schema-failure-stage.json sha256=943a5fbeb44250410844ad6fd7a0083131e9accdda556a5ee8f2cb0f015a3615
+fixture=t3-migration testdata/sqlite/cp1-a-3-migration-ordering.json sha256=497443e98c068c9e561642e29caaf59d5e0904cc7a2cb9701940d9200b14f303
+overlay_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-3-red-overlay-manifest.txt sha256=4f66416070e89bd9ead3d797482ef23b869549504f787ff05cafe1f1eacfaa83
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-3-red/reconstruct-red.sh sha256=7ad6759de55728d34b8161633fe4b9bff51baddd638e0d65baf80456877c81c3
+red_receipt=t1-bootstrap-red-cp1-a-3.txt sha256=35c83398f7d2d2a8900656ba2c81fe6e0ef98c4046684847529f9da85dee4bb5
+red_receipt=t2-domain-red-cp1-a-3.txt sha256=0c9e7fcadd2d4282822a52d7e881276ccb3bfa706561755011a5f9f10c8f0e10
+red_receipt=t3-sqlite-red-cp1-a-3.txt sha256=5d375689cd34f2f97c63a9547198d4cf9c754dd1286a0a9849d179c1ca7f66b6
+red_receipt=t3-migration-red-cp1-a-3.txt sha256=92616271438d12ccc22b741a72a581577b8de80ea89f52427166d4f75f60a6b9
+green_receipt=t1-bootstrap-green-cp1-a-3.txt sha256=ee83cc34e919a1b999ed5f74befa16bc3e7cc0a471afb4cb6537fea1718594d8
+green_receipt=t2-domain-green-cp1-a-3.txt sha256=fa811dbd73f10cf2c01eceb5fdfb0b21cd283342118542ce756ba31ab258446b
+green_receipt=t3-sqlite-green-cp1-a-3.txt sha256=aba4385cea4705ffb397ed53db58538ab7924c0038fa73e8537e27c59d0ecaf4
+green_receipt=t3-migration-green-cp1-a-3.txt sha256=a73f0f69b7cafeb7b0169b63c18405e1666b6bb5445dbb89cd949a0d939487e6
+green_receipt=t4-scanner-green-cp1-a-3.txt sha256=44511d4b2ae03e1b4d9260f961ca16df5c35172da625030e5128c4dd4fee9743
+sqlc_version=v1.29.0
+betterleaks_version=v1.7.4
+migration_protocol=golang-migrate/v4 modernc sqlite driver, iofs source, NoTxWrap=false, durable crash-position journal
+network=permanently_disabled
+red_reconstruction_exit=0
+t1_red_exit=1
+t2_red_exit=1
+t3_schema_red_exit=1
+t3_migration_red_exit=1
+t1_green_exit=0
+t2_green_exit=0
+t3_schema_green_exit=0
+t3_migration_green_exit=0
+t4_green_exit=0
+full_go_test_exit=0
+race_go_test_exit=0
+vet_exit=0
+generate_exit=0
+tidy_diff_exit=0
+git_diff_check_exit=0
+sqlc_drift_exit=0
+make_check_exit=0
+receipt_identity_note=green evidence was executed on evidence_source_commit before this manifest amendment; production code and generated output are unchanged by the receipt-only amendment

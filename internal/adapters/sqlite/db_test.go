@@ -4,17 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
-	"github.com/guilhermecastro/talaria-mem/internal/testutil"
 )
 
 func openTestDB(t *testing.T) *DB {
 	t.Helper()
-	database, err := Open(context.Background(), filepath.Join(t.TempDir(), "talaria.db"))
+	directory := t.TempDir()
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	database, err := OpenForMaintenance(context.Background(), filepath.Join(directory, "talaria.db"), testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +61,7 @@ func TestSchema(t *testing.T) {
 		"memories", "memory_revisions", "memory_fts", "usage_daily", "usage_lifetime",
 		"outbox", "projection_state", "skill_promotions", "deletion_receipts",
 		"purge_operations", "managed_backups", "idempotency_requests", "migration_journal",
-		"rule_activation_journal",
+		"rule_activation_journal", "activation_epoch_audit",
 	}
 	for _, table := range wantTables {
 		var count int
@@ -115,8 +120,12 @@ func TestSchemaResolutionStateConstraint(t *testing.T) {
 }
 
 func TestSchemaRestartPersistence(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "restart.db")
-	database, err := Open(context.Background(), path)
+	directory := t.TempDir()
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "restart.db")
+	database, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +139,7 @@ func TestSchemaRestartPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	database, err = Open(context.Background(), path)
+	database, err = Open(context.Background(), path, testManagedPathPolicy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,6 +150,174 @@ func TestSchemaRestartPersistence(t *testing.T) {
 	}
 	if name != "persisted" {
 		t.Fatalf("workspace after restart = %q", name)
+	}
+}
+
+func TestOpenIsNonMutatingAndDoesNotCreate(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "ordinary.db")
+	database, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var versionBefore int
+	if err := database.sql.QueryRow("PRAGMA user_version").Scan(&versionBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ordinary, err := Open(context.Background(), path, testManagedPathPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ordinary.Close(); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(directory, "missing.db")
+	if _, err := Open(context.Background(), missing, testManagedPathPolicy{}); err == nil {
+		t.Fatal("ordinary Open created or accepted missing database")
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Fatalf("ordinary Open created missing path: %v", err)
+	}
+	var versionAfter int
+	maintenance, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer maintenance.Close()
+	if err := maintenance.sql.QueryRow("PRAGMA user_version").Scan(&versionAfter); err != nil {
+		t.Fatal(err)
+	}
+	if versionAfter != versionBefore {
+		t.Fatalf("ordinary Open changed schema version: %d -> %d", versionBefore, versionAfter)
+	}
+}
+
+func TestSchemaContractRejectsMissingNonFTSObjects(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "tampered.db")
+	database, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.sql.Exec("DROP TABLE outbox"); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if opened, err := Open(context.Background(), path, testManagedPathPolicy{}); err == nil {
+		opened.Close()
+		t.Fatal("ordinary open accepted missing non-FTS table")
+	}
+}
+
+func TestSchemaContractRejectsMissingNonFTSIndex(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "tampered-index.db")
+	database, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.sql.Exec("DROP INDEX idempotency_requests_expiry"); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if opened, err := Open(context.Background(), path, testManagedPathPolicy{}); err == nil {
+		opened.Close()
+		t.Fatal("ordinary open accepted missing non-FTS index")
+	}
+}
+
+func TestMaintenanceOpenRejectsTamperedSchemaContract(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "tampered-maintenance.db")
+	database, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.sql.Exec("DROP TABLE projection_state"); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if reopened, err := OpenForMaintenance(context.Background(), path, testManagedPathPolicy{}, testPrepareManagedDatabaseFile); err == nil {
+		reopened.Close()
+		t.Fatal("maintenance open accepted tampered schema contract")
+	}
+}
+
+func TestBackupReconcilePhaseVocabulary(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+	for _, phase := range []string{"pre_effect", "quarantine_renamed", "file_fsynced", "deleted", "inventory_rebuilt", "receipt_complete"} {
+		_, err := database.sql.ExecContext(ctx, `
+			INSERT INTO purge_operations(
+				id, operation_identity, operation_kind, phase, receipt_digest,
+				created_at, updated_at
+			) VALUES (?, ?, 'backup_reconcile', ?, X'01',
+				'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`,
+			"018f1f61-7b5c-7abc-8def-0123456789"+phase[:2], "op-"+phase, phase)
+		if err != nil {
+			t.Fatalf("backup phase %s rejected: %v", phase, err)
+		}
+	}
+	if _, err := database.sql.ExecContext(ctx, `
+		INSERT INTO purge_operations(
+			id, operation_identity, operation_kind, phase, receipt_digest,
+			created_at, updated_at
+		) VALUES ('018f1f61-7b5c-7abc-8def-0123456789ff', 'op-invalid',
+			'backup_reconcile', 'effect_applied', X'01',
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`); err == nil {
+		t.Fatal("invalid backup-reconcile phase accepted")
+	}
+	if _, err := database.sql.ExecContext(ctx, `
+		INSERT INTO purge_operations(
+			id, operation_identity, operation_kind, phase, receipt_digest,
+			safe_error, created_at, updated_at
+		) VALUES ('018f1f61-7b5c-7abc-8def-0123456789fe', 'op-unsafe',
+			'backup_reconcile', 'pre_effect', X'01', 'line
+break',
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`); err == nil {
+		t.Fatal("unsafe backup-reconcile error accepted")
+	}
+}
+
+func TestMemoryPurgePhaseVocabulary(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+	phases := []string{"reserved", "purge_pending", "pre_effect", "effect_applied", "post_effect", "complete", "failed"}
+	for index, phase := range phases {
+		id := fmt.Sprintf("018f1f61-7b5c-7abc-8def-01234567%04x", index)
+		_, err := database.sql.ExecContext(ctx, `
+			INSERT INTO purge_operations(
+				id, operation_identity, operation_kind, phase, receipt_digest,
+				created_at, updated_at
+			) VALUES (?, ?, 'memory_purge', ?, X'01',
+				'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`, id, "memory-"+phase, phase)
+		if err != nil {
+			t.Fatalf("memory purge phase %s rejected: %v", phase, err)
+		}
+	}
+	if _, err := database.sql.ExecContext(ctx, `
+		INSERT INTO purge_operations(
+			id, operation_identity, operation_kind, phase, receipt_digest,
+			created_at, updated_at
+		) VALUES ('018f1f61-7b5c-7abc-8def-01234567ffff', 'memory-invalid',
+			'memory_purge', 'quarantine_renamed', X'01',
+			'2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`); err == nil {
+		t.Fatal("backup-only purge phase accepted for memory purge")
 	}
 }
 
@@ -187,13 +364,6 @@ func TestFTSAndUnicodeDiacritic(t *testing.T) {
 }
 
 func TestFTSEligibility(t *testing.T) {
-	var fixture struct {
-		ForbiddenRows []string `json:"forbidden_rows"`
-	}
-	testutil.ReadJSONFixture(t, &fixture, "sqlite", "fts-eligibility-drift.json")
-	if len(fixture.ForbiddenRows) != 5 {
-		t.Fatalf("unexpected FTS fixture: %+v", fixture)
-	}
 	database := openTestDB(t)
 	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ab", "eligible", domain.TrustVerified, domain.LifecycleActive)
 	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ac", "unverified", domain.TrustUnverified, domain.LifecycleActive)

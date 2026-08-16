@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 func ValidateUUIDv7(value string) error {
@@ -47,5 +48,29 @@ func ValidateMemoryRevision(revision MemoryRevision) error {
 	if err := ValidateMemoryText(revision.Title, []byte(revision.Content), revision.Tags); err != nil {
 		return err
 	}
+	if err := ValidateProvenance(revision.Provenance); err != nil {
+		return err
+	}
 	return ValidateTimestamp(revision.CreatedAt)
+}
+
+// ValidateProvenance applies byte-oriented limits before any provenance value
+// is persisted or included in a scanner boundary. Lengths are byte lengths,
+// not rune counts, so the limits remain deterministic across clients.
+func ValidateProvenance(provenance Provenance) error {
+	if len(provenance.Labels) > MaxProvenanceLabels {
+		return NewError(CodeValidation, "too many provenance labels", false)
+	}
+	for _, label := range provenance.Labels {
+		if !utf8.ValidString(label) || len(label) > MaxProvenanceLabelBytes {
+			return NewError(CodeValidation, "invalid provenance label", false)
+		}
+	}
+	if !utf8.ValidString(provenance.Actor) || !utf8.ValidString(provenance.Source) {
+		return NewError(CodeValidation, "invalid provenance", false)
+	}
+	if !utf8.ValidString(provenance.SourceLocator) || len(provenance.SourceLocator) > MaxSourceLocatorBytes {
+		return NewError(CodeValidation, "invalid source locator", false)
+	}
+	return nil
 }

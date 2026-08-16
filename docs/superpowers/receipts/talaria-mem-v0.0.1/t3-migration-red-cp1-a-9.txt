@@ -1,0 +1,22 @@
+task=cp1-a-9
+phase=RED
+scope=T3-migration-crash-before-run
+source_commit=dc491fd7060cde7e137ccca4931ee5b12db0928a
+source_tree=e978d791701520a16f6850c20f893e4bc7edf8ca
+command=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-9-red/reconstruct-red.sh
+expected_exit=1
+actual_exit=1
+fixtures=true-subprocess-death-after-SetVersion-dirty-before-Run-migration-2-and-migration-3
+failure_cause=the rejected source writes migration_journal started evidence only inside Run, so process death after golang-migrate SetVersion(target,true) leaves a dirty authority with no durable run evidence
+--- raw output ---
+=== RUN   TestMigrationDirtyRecoveryAfterSetVersionBeforeRun
+=== RUN   TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-2
+    migration_process_death_cp1_a9_test.go:76: dirty migration has no durable run evidence
+=== RUN   TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-3
+    migration_process_death_cp1_a9_test.go:76: dirty migration has no durable run evidence
+--- FAIL: TestMigrationDirtyRecoveryAfterSetVersionBeforeRun (0.07s)
+    --- FAIL: TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-2 (0.03s)
+    --- FAIL: TestMigrationDirtyRecoveryAfterSetVersionBeforeRun/migration-3 (0.04s)
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.445s
+--- end raw output ---

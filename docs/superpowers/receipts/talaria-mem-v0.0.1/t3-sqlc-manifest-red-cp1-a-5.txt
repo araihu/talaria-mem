@@ -1,0 +1,23 @@
+task=cp1-a-5
+scope=T3-sqlc-manifest-drift
+phase=RED
+tested_source_commit=e852fbcd56630bfb2e4be46700671646b749b1be
+tested_source_tree=0c6d98aaa86b4b37cc7162701922d98009f5bf39
+negative_fixture=internal/adapters/sqlite/sqlc.manifest:first-hash-tampered-in-temporary-copy
+expected_exit=0
+actual_exit=0
+nested_expected_exit=1
+nested_actual_exit=1
+command=make sqlc-negative
+raw_output_begin
+sh scripts/check-sqlc-generated-negative.sh
+sqlc generated manifest drifted; run make sqlc-generate
+--- /var/folders/7j/t7951hln50d1061v6gn0fmmm0000gn/T//talaria-sqlc-negative.jnnPYA /var/folders/7j/t7951hln50d1061v6gn0fmmm0000gn/T//talaria-sqlc-check.vyiMyL
+@@ -1,4 +1,4 @@
+-0319d8eacca42f5b6d326d8945e6958979fd6f82fb5438ebaea43c5d3c71f7db  internal/adapters/sqlite/sqlc/db.go
++4319d8eacca42f5b6d326d8945e6958979fd6f82fb5438ebaea43c5d3c71f7db  internal/adapters/sqlite/sqlc/db.go
+ 83f5b4fedb8875757941de877f6bab4a1832d08d24cd2780c9c3bd0f1cfd32ec  internal/adapters/sqlite/sqlc/maintenance.sql.go
+ d865fd0c25ee503fb0418035b6d0496d698e705373bf51698e92bf89ee3da67e  internal/adapters/sqlite/sqlc/memory.sql.go
+ 4aee7bbf296ac9fc72a5809c6e084b7763bdeee2708c4ff0744fcb0b3e57ccbe  internal/adapters/sqlite/sqlc/models.go
+task=cp1-a-5 scope=sqlc-manifest phase=RED expected_exit=1 actual_exit=1
+raw_output_end

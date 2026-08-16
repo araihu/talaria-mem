@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 )
 
@@ -100,7 +99,10 @@ func checkJSONValue(decoder *json.Decoder, token json.Token) error {
 				return NewError(CodeValidation, "invalid JSON object key", false)
 			}
 			if _, exists := keys[key]; exists {
-				return NewError(CodeValidation, fmt.Sprintf("duplicate JSON key %q", key), false)
+				// Never echo attacker-controlled key bytes in a diagnostic. The
+				// duplicate is still rejected, but callers only receive a stable,
+				// content-free error.
+				return NewError(CodeValidation, "duplicate JSON key", false)
 			}
 			keys[key] = struct{}{}
 			valueToken, err := decoder.Token()

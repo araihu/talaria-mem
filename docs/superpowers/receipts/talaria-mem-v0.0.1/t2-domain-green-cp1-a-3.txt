@@ -1,0 +1,12 @@
+task=cp1-a-3
+scope=T2 domain/ports
+phase=GREEN
+tested_source_commit=6bb73312b36b8582f26d423f0fd2536a91cef92b
+tested_source_tree=6eb365a882611272e23fa0a01c08a4ad9e58ba3d
+negative_fixture=testdata/domain/cp1-a-2-active-pending-upgrade.json
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	0.615s
+ok  	github.com/guilhermecastro/talaria-mem/internal/ports	0.786s

@@ -1,0 +1,12 @@
+task=cp1-a-2
+scope=T3-schema
+phase=GREEN
+negative_fixture=testdata/sqlite/cp1-a-2-schema-generation.json
+fixture_sha256=9eea092b924bc24b2076b3de07fb6e2f4c6f371a624029dbb7169ed51e483c2b
+sqlc_version=v1.29.0
+command=go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f db/sqlc.yaml && go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.302s
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	(cached)

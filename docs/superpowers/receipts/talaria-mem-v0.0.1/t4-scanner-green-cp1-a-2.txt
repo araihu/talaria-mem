@@ -1,0 +1,12 @@
+task=cp1-a-2
+scope=T4
+phase=GREEN
+negative_fixture=testdata/secrets/cp1-a-2-restricted-extend-fifo.json
+fixture_sha256=480a9db89f9eb3f8042cdac71173bb02374afc2e0666be07a852a17233f09b05
+betterleaks=v1.7.4
+network=permanently_disabled
+command=TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/scanner	2.696s

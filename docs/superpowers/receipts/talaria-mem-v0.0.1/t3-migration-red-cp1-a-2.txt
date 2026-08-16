@@ -1,0 +1,19 @@
+task=cp1-a-2
+scope=T3-migration
+phase=RED
+tested_source_commit=45bfbc1bd6393bdca0d9c06ecf9101f4b557d106
+tested_source_tree=cc5a1a5a67b26c9be2df646713d73750e0ae55a0
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+negative_fixture=testdata/sqlite/cp1-a-2-migration-protocol.json
+fixture_sha256=735a592162a71b36e3400e323cf0e54f88032ba6bed42b03588a722b631d8ab2
+red_harness=cp1_a2_migration_red_test.go in content-addressed rejected-source scratch worktree
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+expected_exit=1
+actual_exit=1
+raw_output:
+--- FAIL: TestMigrationRoundTripUsesDurableProtocol (0.01s)
+    cp1_a2_migration_red_test.go:20: durable migration table missing: SQL logic error: no such table: schema_migrations (1)
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.231s
+FAIL

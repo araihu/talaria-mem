@@ -1,0 +1,10 @@
+task=cp1-a-6
+phase=RED
+source_commit=70b667b083d268a12f797247d34ef1c1943c97a9
+source_tree=738fbd7de2bed2f73368fd054fbf96f2ba0bcbdb
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-6-red/reconstruct-red.sh
+reconstruction_sha256=e5e249585cef08263461071f772bc9b67902a5572a1faf5bca6babb8fe6f82ae
+overlay=internal/adapters/sqlite/cp1_a6_migration_authority_red_test.go source=testdata/cp1-a-6/red-overlay/internal/adapters/sqlite/cp1_a6_migration_authority_red_test.go sha256=a71ff18710863dff062721fd167a5a12c533e10d93a02851c111653bb53cf349
+command=go test ./internal/adapters/sqlite -run '^TestMigrationAuthorityCP1A6' -count=1 expected_exit=1 actual_exit=1
+negative_fixtures=divergent-clean-authorities,duplicate-schema-migrations-rows,altered-protocol-DDL,existing-version-without-journal
+note=behavioral rejection precedes correction; no GREEN-only symbol, hook, environment, or receipt artifact is required

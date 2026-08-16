@@ -128,25 +128,20 @@ func (q *Queries) DeleteFTSRow(ctx context.Context, memoryID string) error {
 	return err
 }
 
-const insertFTSRow = `-- name: InsertFTSRow :exec
+const insertEligibleFTSRow = `-- name: InsertEligibleFTSRow :exec
 INSERT INTO memory_fts(title, content, tags, memory_id)
-VALUES (?, ?, ?, ?)
+SELECT revisions.title, revisions.content, revisions.tags_json, memories.id
+FROM memories
+JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
+WHERE memories.id = ?
+  AND memories.trust = 'verified'
+  AND memories.lifecycle = 'active'
+  AND revisions.trust = 'verified'
+  AND revisions.lifecycle = 'active'
 `
 
-type InsertFTSRowParams struct {
-	Title    string `json:"title"`
-	Content  string `json:"content"`
-	Tags     string `json:"tags"`
-	MemoryID string `json:"memory_id"`
-}
-
-func (q *Queries) InsertFTSRow(ctx context.Context, arg InsertFTSRowParams) error {
-	_, err := q.db.ExecContext(ctx, insertFTSRow,
-		arg.Title,
-		arg.Content,
-		arg.Tags,
-		arg.MemoryID,
-	)
+func (q *Queries) InsertEligibleFTSRow(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, insertEligibleFTSRow, id)
 	return err
 }
 

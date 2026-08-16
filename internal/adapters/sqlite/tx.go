@@ -7,7 +7,10 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
 )
 
-func (database *DB) WithTx(ctx context.Context, operation func(*sql.Tx) error) (err error) {
+// withTx is deliberately private. Production code reaches SQLite mutation
+// only through narrow repository ports; maintenance code has its own explicit
+// boundary and cannot obtain an unrestricted transaction from DB.
+func (database *DB) withTx(ctx context.Context, operation func(*sql.Tx) error) (err error) {
 	tx, err := database.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.MapSQLiteError(err)

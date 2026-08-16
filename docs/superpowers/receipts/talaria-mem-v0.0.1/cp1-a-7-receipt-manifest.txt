@@ -1,0 +1,28 @@
+task=cp1-a-7
+phase=FROZEN-CANDIDATE
+candidate_parent=e592d016577e4d9433ec1f624a11cfbfa3dc66d1
+red_source_commit=e592d016577e4d9433ec1f624a11cfbfa3dc66d1
+red_source_tree=f73fd6c742c2e8f70ed05a13e97d06daf55b5553
+red_overlay_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-7-red-overlay-manifest.txt sha256=49855354dba7b5fbbf7f209d6402ea9f8b431a1fd58fe81bbcac96a6937374dc
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-7-red/reconstruct-red.sh sha256=e8e8e2751a2ff9db25df443faaae9668443b12ced5777cf842a3b2e8cb7a193f
+overlay=internal/adapters/sqlite/cp1_a7_migration_authority_red_test.go sha256=416000e17c7c5dabea3ca0450e67da3970ddadcedeee347dcb6bfb62ab0ddc6a
+
+receipt=t3-migration-red-cp1-a-7.txt sha256=0c1437323fe0e8c2c9b3b4bea69bc9c1d6cd2af9fcb0aaae13b0a21cbdf73e66 expected_exit=1 actual_exit=1
+receipt=t3-migration-green-cp1-a-7.txt sha256=9b2329af9ed5fdc260591608e83bd5ab355d1390ec0a77a5416158ca6f5f7bdd expected_exit=0 actual_exit=0
+
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run 'TestMigrationAuthorityCP1A7|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationRoundTrip|TestMigrationDirtyRecovery|TestMigrationJournalWriteFailures|TestMigrationRejectsPreJournal' -count=1" exit=0
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
+gate=full-test-vet command="go test ./... && go vet ./..." exit=0
+gate=full-race command="go test -race ./..." exit=0
+gate=generate command="go generate ./..." exit=0
+gate=tidy command="go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0
+gate=sqlc-negative command="make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1
+gate=make-check command="make check" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+authority=exactly-one-canonical-schema_migrations-row; INTEGER NOT NULL dirty with CHECK dirty IN (0,1); integer storage-type validation; no mutation on malformed authority; above-target rejection preserved
+journal=only exact canonical pre-DDL migration-1 inventory may recover without journal; post-DDL/partial/altered v1 fails closed; latest clean completion fingerprint binds journal to schema and both authorities
+crash_windows=after clean-version writes for migrations 1/2/3; before/after user_version; before/after final journal; ordinary Open rejects incomplete windows and maintenance retry restores readiness
+controls=explicit per-run migrationOptions/migrationFailpoints; no production environment inspection, package-global failpoints, or os.Exit
+toolchain=betterleaks-v1.7.4 scanner_network=disabled sqlc-v1.29.0

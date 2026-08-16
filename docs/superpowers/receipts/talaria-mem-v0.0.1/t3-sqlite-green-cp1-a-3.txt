@@ -1,0 +1,12 @@
+task=cp1-a-3
+scope=T3 schema
+phase=GREEN
+tested_source_commit=6bb73312b36b8582f26d423f0fd2536a91cef92b
+tested_source_tree=6eb365a882611272e23fa0a01c08a4ad9e58ba3d
+negative_fixture=testdata/sqlite/cp1-a-3-migration-ordering.json
+command=go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.592s
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	(cached)

@@ -1,0 +1,7 @@
+{
+  "before": "active",
+  "after": "pending",
+  "candidate_generation": "candidate-v2",
+  "candidate_fingerprint": "fingerprint-v2",
+  "expected": "atomic upgrade-start edge accepted"
+}

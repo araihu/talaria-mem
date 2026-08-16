@@ -1,0 +1,20 @@
+task=cp1-a-5
+scope=T1-bootstrap
+phase=RED
+tested_source_commit=e03399430df655706612c33a83cc8a3905b9e775
+tested_source_tree=ca1070ecc440aa81b2520d5b8b3bfce91f27c4c9
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-5-red/reconstruct-red.sh
+reconstruction_sha256=22b58054cca52f82a536ac66b7c246ffd64178a6592c6a3f15121c8fb1a5d991
+negative_fixture=testdata/bootstrap/cp1-a-5-provider-free.json
+expected_exit=1
+actual_exit=1
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1
+raw_output_begin
+--- FAIL: TestBootstrapRemainsProviderFree (0.03s)
+    cp1_a5_bootstrap_red_test.go:27: provider-free bootstrap depends on concrete filesystem
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.621s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.303s
+FAIL
+task=cp1-a-5 scope=T1-bootstrap phase=RED expected_exit=1 actual_exit=1
+raw_output_end

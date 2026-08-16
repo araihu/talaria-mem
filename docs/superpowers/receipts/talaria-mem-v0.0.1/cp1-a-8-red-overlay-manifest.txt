@@ -1,0 +1,12 @@
+task=cp1-a-8
+phase=RED-OVERLAY-FROZEN
+source_commit=34f54d2159a41e6abd022b66c22c18d9755165d1
+source_tree=a6f8ee7717694265d9eadf0df1e17acb4dba1f7f
+overlay=testdata/cp1-a-8/red-overlay/internal/adapters/sqlite/cp1_a8_migration_authority_red_test.go
+overlay_sha256=63a291af4fe762f256fbb098f7b32e72080ee54d10c8ccf5ff8b6c71a0fc1905
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-8-red/reconstruct-red.sh
+reconstruction_sha256=39d6219eb15cd29bb1419739dbad5fe535f592d065e8de72234d4ce06d352b68
+command=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-8-red/reconstruct-red.sh
+expected_exit=1
+actual_exit=1
+failure=the rejected source leaves a durable zero-row authority after process death immediately after canonical authority initialization; maintenance rejects it before the atomic correction

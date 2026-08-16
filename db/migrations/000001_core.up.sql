@@ -1,11 +1,34 @@
-PRAGMA auto_vacuum = INCREMENTAL;
-
 CREATE TABLE workspaces (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     revision_watermark INTEGER NOT NULL DEFAULT 0 CHECK (revision_watermark >= 0),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+) STRICT;
+
+-- The run journal is created before the later maintenance migration so a
+-- failed migration can record its exact partial version even when the
+-- failing migration's own DDL transaction is rolled back.
+CREATE TABLE migration_journal (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL DEFAULT '',
+    target_version INTEGER NOT NULL CHECK (target_version >= 0),
+    current_version INTEGER NOT NULL CHECK (current_version >= 0),
+    failed_version INTEGER CHECK (failed_version IS NULL OR failed_version >= 0),
+    completed_version INTEGER CHECK (completed_version IS NULL OR completed_version >= 0),
+    -- managed_backups is introduced by migration 3. Keeping this journal
+    -- independent avoids a forward migration ordering dependency while
+    -- preserving the non-content backup identity for later reconciliation.
+    backup_id TEXT,
+    failure_stage TEXT NOT NULL DEFAULT '' CHECK (failure_stage IN ('', 'started', 'rollback_before_commit', 'applied_ddl_before_clean')),
+    schema_fingerprint TEXT NOT NULL DEFAULT '',
+    dirty INTEGER NOT NULL DEFAULT 0 CHECK (dirty IN (0, 1)),
+    safe_error TEXT NOT NULL DEFAULT '',
+    started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    CHECK (length(run_id) <= 128 AND instr(run_id, char(0)) = 0 AND instr(run_id, char(10)) = 0 AND instr(run_id, char(13)) = 0),
+    CHECK (length(schema_fingerprint) <= 64 AND instr(schema_fingerprint, char(0)) = 0 AND instr(schema_fingerprint, char(10)) = 0 AND instr(schema_fingerprint, char(13)) = 0),
+    CHECK (length(safe_error) <= 512 AND instr(safe_error, char(0)) = 0 AND instr(safe_error, char(10)) = 0 AND instr(safe_error, char(13)) = 0)
 ) STRICT;
 
 CREATE TABLE workspace_bindings (

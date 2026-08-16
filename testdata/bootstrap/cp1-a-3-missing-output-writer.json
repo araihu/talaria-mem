@@ -1,0 +1,6 @@
+{
+  "task": "cp1-a-3",
+  "scope": "T1 bootstrap",
+  "negative_fixture": "missing output writer",
+  "expected_behavior": "typed error and no panic"
+}

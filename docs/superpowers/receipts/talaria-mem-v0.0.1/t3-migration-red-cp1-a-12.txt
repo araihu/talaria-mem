@@ -1,0 +1,18 @@
+task=cp1-a-12
+phase=RED
+scope=T3-migration-clock-and-final-authority-validation
+source_commit=94c9fd4565e0a2d6bdfab7736ff6496860ddf945
+source_tree=738a55f79972c464e71abebe9027e9b1762b8e39
+command=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-12-red/reconstruct-red.sh
+expected_exit=1
+actual_exit=1
+fixtures=dirty-v2-dirty-v3-clean-final-future-started-journal;historical-row-corruption-before-final-journal
+failure_cause=the rejected source updated existing journal rows from the wall clock without clamping to persisted started_at and returned success without validating every journal row after final writes
+--- raw output ---
+=== RUN   TestMigrationCP1A12ClampsJournalUpdatesToPersistedStartAcrossWindows
+    migration_authority_cp1_a12_test.go:53: journal update was not clamped to persisted started_at: migration_journal row 0 has invalid updated_at
+=== RUN   TestMigrationCP1A12ValidatesEveryJournalRowBeforeMaintenanceSuccess
+    migration_authority_cp1_a12_test.go:93: maintenance returned success with an invalid historical journal row
+FAIL
+task=cp1-a-12 scope=T3-migration-clock-and-final-validation phase=RED expected_exit=1 actual_exit=1
+--- end raw output ---

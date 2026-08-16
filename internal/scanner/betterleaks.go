@@ -2,7 +2,9 @@ package scanner
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"sync"
 
@@ -12,10 +14,14 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
 )
 
-const ReviewedRuleGeneration = "betterleaks-v1.7.4-talaria-rules-v1"
+const (
+	BetterleaksVersion      = "v1.7.4"
+	reviewedRuleFingerprint = "09b7a5a71be10c6a571cf8dee1075af46be672600657e7b596559093834e57e8"
+	ReviewedRuleGeneration  = "betterleaks-v1.7.4-rules-09b7a5a71be10c6a571cf8dee1075af46be672600657e7b596559093834e57e8"
+)
 
 //go:embed rules/reviewed.toml
-var ReviewedRules []byte
+var reviewedRules []byte
 
 type engineFinding struct {
 	RuleID string
@@ -32,7 +38,16 @@ type betterleaksEngine struct {
 	mu       sync.Mutex
 }
 
-func newBetterleaksEngine(ctx context.Context, rules []byte) (*betterleaksEngine, error) {
+func newBetterleaksEngine(ctx context.Context, rules []byte) (engine *betterleaksEngine, err error) {
+	defer func() {
+		if recover() != nil {
+			engine = nil
+			err = ErrInvalidRules
+		}
+	}()
+	if err := validateTalariaRuleSchema(rules); err != nil {
+		return nil, err
+	}
 	configuration, err := betterconfig.ParseTOML(rules, "embedded:talaria-reviewed-rules")
 	if err != nil {
 		return nil, ErrInvalidRules
@@ -70,11 +85,26 @@ func New(configuration Config) (*Scanner, error) {
 	if err := configuration.validate(); err != nil {
 		return nil, err
 	}
-	engine, err := newBetterleaksEngine(context.Background(), ReviewedRules)
+	if configuration.Generation != ReviewedRuleGeneration {
+		return nil, ErrInvalidRules
+	}
+	rules, err := reviewedRulesForUse()
+	if err != nil {
+		return nil, err
+	}
+	engine, err := newBetterleaksEngine(context.Background(), rules)
 	if err != nil {
 		return nil, err
 	}
 	return newScannerWithEngine(configuration, engine), nil
+}
+
+func reviewedRulesForUse() ([]byte, error) {
+	digest := sha256.Sum256(reviewedRules)
+	if hex.EncodeToString(digest[:]) != reviewedRuleFingerprint {
+		return nil, ErrInvalidRules
+	}
+	return append([]byte(nil), reviewedRules...), nil
 }
 
 func newScannerWithEngine(configuration Config, engine scanEngine) *Scanner {
@@ -92,6 +122,9 @@ func (scanner *Scanner) Scan(ctx context.Context, fields []ports.TextField) port
 
 	result := ports.ScanResult{Status: ports.ScanClean, Generation: scanner.Generation()}
 	for _, field := range fields {
+		if !field.Name.Valid() {
+			return ports.ScanResult{Status: ports.ScanUncertain, Generation: scanner.Generation()}
+		}
 		findings, status := scanner.scanField(scanContext, field.Value)
 		if status != ports.ScanClean {
 			if status != ports.ScanFinding {
@@ -100,7 +133,7 @@ func (scanner *Scanner) Scan(ctx context.Context, fields []ports.TextField) port
 			result.Status = ports.ScanFinding
 		}
 		for _, finding := range findings {
-			if finding.RuleID == "" || finding.Start < 0 || finding.End < finding.Start {
+			if !ports.ValidateRuleID(finding.RuleID) || finding.Start < 0 || finding.End < finding.Start {
 				return ports.ScanResult{Status: ports.ScanUncertain, Generation: scanner.Generation()}
 			}
 			result.Findings = append(result.Findings, ports.Finding{

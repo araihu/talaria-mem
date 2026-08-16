@@ -21,7 +21,7 @@ func NewRepository(database *DB) *Repository {
 }
 
 func (repository *Repository) WithTx(ctx context.Context, operation func(ports.MemoryTx) error) error {
-	return repository.database.WithTx(ctx, func(tx *sql.Tx) error {
+	return repository.database.withTx(ctx, func(tx *sql.Tx) error {
 		return operation(&repositoryTx{queries: sqlc.New(tx)})
 	})
 }
@@ -86,11 +86,16 @@ func (repository *Repository) ReadCurrent(ctx context.Context, memoryID string) 
 		},
 		CreatedAt: revisionCreatedAt,
 	}
+	resolutionState, err := domain.ValidateResolutionState(revision.Kind, revision.ResolutionState)
+	if err != nil {
+		return domain.Memory{}, domain.MemoryRevision{}, err
+	}
+	revision.ResolutionState = resolutionState
 	return memory, revision, nil
 }
 
 func (repository *Repository) RebuildFTS(ctx context.Context) error {
-	return repository.database.WithTx(ctx, func(tx *sql.Tx) error {
+	return repository.database.withTx(ctx, func(tx *sql.Tx) error {
 		queries := sqlc.New(tx)
 		if err := queries.DeleteAllFTSRows(ctx); err != nil {
 			return err
@@ -121,6 +126,14 @@ func (transaction *repositoryTx) CreateMemory(ctx context.Context, memory domain
 }
 
 func (transaction *repositoryTx) CreateRevision(ctx context.Context, revision domain.MemoryRevision) error {
+	resolutionState, err := domain.ValidateResolutionState(revision.Kind, revision.ResolutionState)
+	if err != nil {
+		return err
+	}
+	revision.ResolutionState = resolutionState
+	if err := domain.ValidateMemoryRevision(revision); err != nil {
+		return err
+	}
 	tags, err := json.Marshal(revision.Tags)
 	if err != nil {
 		return domain.NewError(domain.CodeValidation, "invalid tags", false)
@@ -182,19 +195,16 @@ func (transaction *repositoryTx) MoveCurrentRevision(ctx context.Context, memory
 	return nil
 }
 
-func (transaction *repositoryTx) ReplaceFTSRow(ctx context.Context, row *ports.FTSRow) error {
-	if row == nil {
+func (transaction *repositoryTx) ReplaceFTSRow(ctx context.Context, memoryID string) error {
+	if memoryID == "" {
 		return domain.NewError(domain.CodeValidation, "FTS row identity is required", false)
 	}
-	if err := transaction.queries.DeleteFTSRow(ctx, row.MemoryID); err != nil {
+	if err := transaction.queries.DeleteFTSRow(ctx, memoryID); err != nil {
 		return domain.MapSQLiteError(err)
 	}
-	if !row.Eligible {
-		return nil
-	}
-	return domain.MapSQLiteError(transaction.queries.InsertFTSRow(ctx, sqlc.InsertFTSRowParams{
-		Title: row.Title, Content: row.Content, Tags: row.Tags, MemoryID: row.MemoryID,
-	}))
+	// Derive eligibility and fields from canonical rows in this transaction;
+	// callers cannot provide content or an eligibility bit.
+	return domain.MapSQLiteError(transaction.queries.InsertEligibleFTSRow(ctx, memoryID))
 }
 
 func (transaction *repositoryTx) AppendOutbox(ctx context.Context, event ports.OutboxEvent) error {

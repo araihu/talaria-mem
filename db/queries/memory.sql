@@ -27,9 +27,16 @@ DELETE FROM memory_fts WHERE memory_id = ?;
 -- name: DeleteAllFTSRows :exec
 DELETE FROM memory_fts;
 
--- name: InsertFTSRow :exec
+-- name: InsertEligibleFTSRow :exec
 INSERT INTO memory_fts(title, content, tags, memory_id)
-VALUES (?, ?, ?, ?);
+SELECT revisions.title, revisions.content, revisions.tags_json, memories.id
+FROM memories
+JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
+WHERE memories.id = ?
+  AND memories.trust = 'verified'
+  AND memories.lifecycle = 'active'
+  AND revisions.trust = 'verified'
+  AND revisions.lifecycle = 'active';
 
 -- name: RebuildEligibleFTSRows :exec
 INSERT INTO memory_fts(title, content, tags, memory_id)

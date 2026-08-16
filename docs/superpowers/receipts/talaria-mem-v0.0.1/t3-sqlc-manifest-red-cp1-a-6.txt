@@ -1,0 +1,20 @@
+task=cp1-a-6
+phase=RED
+command=make sqlc-negative
+outer_expected_exit=0
+outer_actual_exit=0
+nested_expected_exit=1
+nested_actual_exit=1
+--- raw output ---
+sh scripts/check-sqlc-generated-negative.sh
+sqlc generated manifest drifted; run make sqlc-generate
+--- /var/folders/7j/t7951hln50d1061v6gn0fmmm0000gn/T//talaria-sqlc-negative.pib2KM /var/folders/7j/t7951hln50d1061v6gn0fmmm0000gn/T//talaria-sqlc-check.8lHqlL
+@@ -1,4 +1,4 @@
+-0319d8eacca42f5b6d326d8945e6958979fd6f82fb5438ebaea43c5d3c71f7db  internal/adapters/sqlite/sqlc/db.go
++4319d8eacca42f5b6d326d8945e6958979fd6f82fb5438ebaea43c5d3c71f7db  internal/adapters/sqlite/sqlc/db.go
+ 83f5b4fedb8875757941de877f6bab4a1832d08d24cd2780c9c3bd0f1cfd32ec  internal/adapters/sqlite/sqlc/maintenance.sql.go
+ d865fd0c25ee503bf0418035b6d0496d698e705373bf51698e92bf89ee3da67e  internal/adapters/sqlite/sqlc/memory.sql.go
+ 4aee7bbf296ac9fc72a5809c6e084b7763bdeee2708c4ff0744fcb0b3e57ccbe  internal/adapters/sqlite/sqlc/models.go
+task=cp1-a-6 scope=sqlc-manifest phase=RED expected_exit=1 actual_exit=1
+--- end raw output ---
+negative_harness=scripts/check-sqlc-generated-negative.sh sha256=99b5cf689a0aa43081579dcf29176574df12f210f17c39e0b58d2275768912c5

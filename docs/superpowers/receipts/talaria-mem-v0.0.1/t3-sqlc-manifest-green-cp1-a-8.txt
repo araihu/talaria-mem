@@ -1,0 +1,9 @@
+task=cp1-a-8
+phase=GREEN
+scope=T3-sqlc-manifest
+command=sh scripts/check-sqlc-generated.sh
+expected_exit=0
+actual_exit=0
+--- raw output ---
+--- no output ---
+--- end raw output ---

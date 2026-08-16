@@ -1,0 +1,33 @@
+task=cp1-a-8
+phase=FROZEN-CANDIDATE
+candidate_parent=34f54d2159a41e6abd022b66c22c18d9755165d1
+red_source_commit=34f54d2159a41e6abd022b66c22c18d9755165d1
+red_source_tree=a6f8ee7717694265d9eadf0df1e17acb4dba1f7f
+red_overlay_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-8-red-overlay-manifest.txt sha256=1a63de4274c70edffdd166d96398d5f3d96d81e5171d73d10c6d3a001aed12eb
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-8-red/reconstruct-red.sh sha256=39d6219eb15cd29bb1419739dbad5fe535f592d065e8de72234d4ce06d352b68
+overlay=testdata/cp1-a-8/red-overlay/internal/adapters/sqlite/cp1_a8_migration_authority_red_test.go sha256=63a291af4fe762f256fbb098f7b32e72080ee54d10c8ccf5ff8b6c71a0fc1905
+
+receipt=t3-migration-red-cp1-a-8.txt sha256=36c585fd0ea7e74927923d4a4f5078d6898cd7ea10c9424ca6a91b0dc646ced1 expected_exit=1 actual_exit=1
+receipt=t3-migration-green-cp1-a-8.txt sha256=2379b3a0ead9ce5e598b14ce1518b2febe15d6b5eda836ba1dc6d03a67a9d4b1 expected_exit=0 actual_exit=0
+receipt=t3-migration-crash-green-cp1-a-8.txt sha256=baf9114e3063257677ad6a6853d11c46a16b29fcc5edb2ce7e263f0cd4890822 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-red-cp1-a-8.txt sha256=715c6973470ca763fb5fe387bdc0802a8d706a924dc30eb05c6893ef2dfd5ee5 outer_exit=0 nested_expected_exit=1 nested_actual_exit=1
+receipt=t3-sqlc-manifest-green-cp1-a-8.txt sha256=324335cd40888bbb1dc949977d89942d09e0c00f63dbe13c9343aaa0c72e3d7d expected_exit=0 actual_exit=0
+
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationDirtyRecovery|TestMigrationRejectsPreJournal)' -count=1 -v" exit=0
+gate=focused-t3-crash command="go test ./internal/adapters/sqlite -run '^(TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions)$' -count=1 -v" exit=0
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
+gate=full-test-vet command="GOCACHE=/tmp/talaria-mem-cp1-a8-gocache.RzKv4s go test ./... && GOCACHE=/tmp/talaria-mem-cp1-a8-gocache.RzKv4s go vet ./..." exit=0
+gate=full-race command="GOCACHE=/tmp/talaria-mem-cp1-a8-gocache.RzKv4s go test -race ./..." exit=0
+gate=generate command="GOCACHE=/tmp/talaria-mem-cp1-a8-gocache.RzKv4s go generate ./..." exit=0
+gate=tidy command="GOWORK=off go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0
+gate=sqlc-negative command="TALARIA_SQLC_NEGATIVE_TASK=cp1-a-8 make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1
+gate=make-check command="GOCACHE=/tmp/talaria-mem-cp1-a8-gocache.RzKv4s make check" exit=0
+gate=generated-diff command="git diff --exit-code -- internal/adapters/sqlite/sqlc && git diff --exit-code -- internal/adapters/sqlite/sqlc.manifest" exit=0
+gate=diff-check command="git diff --check" exit=0
+gate=production-failpoint-scan command="no migrationFailpoints/migrationOptions/TALARIA_MIGRATION/os.Exit/os.Getenv symbols in internal/adapters/sqlite/db.go" exit=0
+
+authority=canonical schema_migrations initialization and pre-DDL reset are one-row atomic; external zero-row, duplicate, NULL, noncanonical, altered, divergent, above-target, missing-journal and post-DDL states remain fail-closed
+crash_windows=real subprocess deaths after authority initialization/reset plus clean-version, user_version, final-journal, migration-2/3 rollback-before-commit and applied-DDL-before-clean test-only adapter coverage
+production_boundary=ordinary Open remains non-mutating; maintenance remains explicit; no production migration failpoint mechanism or process controls
+toolchain=Betterleaks v1.7.4 sqlc v1.29.0 scanner no-egress preserved

@@ -1,0 +1,11 @@
+task=cp1-a-5
+scope=T3-migration
+phase=GREEN
+tested_source_commit=e852fbcd56630bfb2e4be46700671646b749b1be
+tested_source_tree=0c6d98aaa86b4b37cc7162701922d98009f5bf39
+expected_exit=0
+actual_exit=0
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+raw_output_begin
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.246s
+raw_output_end

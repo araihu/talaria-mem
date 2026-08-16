@@ -1,0 +1,20 @@
+task=cp1-a-2
+scope=T1
+phase=RED
+tested_source_commit=45bfbc1bd6393bdca0d9c06ecf9101f4b557d106
+tested_source_tree=cc5a1a5a67b26c9be2df646713d73750e0ae55a0
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+negative_fixture=testdata/bootstrap/cp1-a-2-reviewed-identity.json
+fixture_sha256=befbea82ca74fb227f666d6f399b7bcc591688186842d83da5a328c510cc3796
+red_harness=cp1_a2_red_test.go in content-addressed rejected-source scratch worktree
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1
+expected_exit=1
+actual_exit=1
+raw_output:
+--- FAIL: TestCP1A2ReviewedIdentityIsDigestBound (0.00s)
+    cp1_a2_red_test.go:12: reviewed generation = "betterleaks-v1.7.4-talaria-rules-v1", want digest-bound identity
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.241s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.364s
+FAIL

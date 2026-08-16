@@ -1,0 +1,20 @@
+task=cp1-a-3
+scope=T1 bootstrap
+phase=RED
+tested_source_commit=1ab97d1c1429ba188c3dd614db015c2d729c9d51
+tested_source_tree=179bef1465f9c3a7ecb2088ff7181481d8389e4f
+negative_fixture=testdata/bootstrap/cp1-a-3-missing-output-writer.json
+fixture_sha256=fe74355a2604acbb90f18f537bb852792ae81914b5c0fdaeba1887e846096169
+red_harness=testdata/cp1-a-3/red-overlay/cmd/talaria-mem/cp1_a3_bootstrap_red_test.go
+harness_sha256=517228f6dafdd5b754a85ead14d7fda39f9b95d27dba7577ed1da67793657e44
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1
+expected_exit=1
+actual_exit=1
+failure_cause=ancestor bootstrap dereferences unavailable output writer; scanner identity is not exercised
+raw_output:
+--- FAIL: TestBootstrapMissingEntrypoint (0.00s)
+    cp1_a3_bootstrap_red_test.go:14: bootstrap panicked with unavailable output: runtime error: invalid memory address or nil pointer dereference
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.567s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.301s
+FAIL

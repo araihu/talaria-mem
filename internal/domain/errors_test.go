@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -38,5 +39,19 @@ func TestDuplicateJSONKeysRejected(t *testing.T) {
 	}
 	if err := RejectDuplicateJSONKeys([]byte(`{"id":"one","nested":[{"id":"two"}]}`)); err != nil {
 		t.Fatalf("distinct-object keys rejected: %v", err)
+	}
+}
+
+func TestDuplicateJSONKeyDiagnosticDoesNotEchoKey(t *testing.T) {
+	t.Parallel()
+	canary := "attacker-controlled-duplicate-key-canary"
+	err := RejectDuplicateJSONKeys([]byte(`{"` + canary + `":"one","` + canary + `":"two"}`))
+	if err == nil {
+		t.Fatal("duplicate JSON key accepted")
+	}
+	if got := err.Error(); got != "duplicate JSON key" {
+		t.Fatalf("duplicate diagnostic = %q", got)
+	} else if strings.Contains(got, canary) {
+		t.Fatal("duplicate diagnostic echoed attacker key")
 	}
 }

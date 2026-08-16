@@ -1,0 +1,21 @@
+task=cp1-a-5
+scope=T4-scanner
+phase=RED
+tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-5-red/reconstruct-red.sh
+reconstruction_sha256=22b58054cca52f82a536ac66b7c246ffd64178a6592c6a3f15121c8fb1a5d991
+negative_fixture=testdata/secrets/cp1-a-4-metadata-canary.json
+expected_exit=1
+actual_exit=1
+command=TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1
+raw_output_begin
+--- FAIL: TestRuleUpgradeCP1A5MetadataCannotEchoCallerContent (0.00s)
+    cp1_a5_metadata_red_test.go:25: unsafe metadata result = {Status:finding Findings:[{Field:content
+        metadata-canary RuleID:rule
+        metadata-canary Start:0 End:1}] Generation:test}
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/scanner	2.706s
+FAIL
+task=cp1-a-5 scope=T4-scanner phase=RED expected_exit=1 actual_exit=1
+raw_output_end

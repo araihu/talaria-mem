@@ -1,0 +1,9 @@
+task=cp1-a-7
+phase=GREEN
+command=go test ./internal/adapters/sqlite -run 'TestMigrationAuthorityCP1A7|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationRoundTrip|TestMigrationDirtyRecovery|TestMigrationJournalWriteFailures|TestMigrationRejectsPreJournal' -count=1
+expected_exit=0
+actual_exit=0
+--- raw output ---
+ok   github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite 0.828s
+--- end raw output ---
+controls=canonical-not-null-authority-and-exact-one-row,pre-DDL-v1-fingerprint/object-inventory-gate,final-clean-journal-fingerprint-bound-to-both-authorities,explicit-per-run-crash-failpoints,no-production-env-or-os-exit

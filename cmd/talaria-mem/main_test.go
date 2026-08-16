@@ -3,12 +3,17 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/guilhermecastro/talaria-mem/internal/testutil"
 )
+
+func TestRunRejectsUnavailableBootstrapOutput(t *testing.T) {
+	if err := Run(context.Background(), []string{"--help"}, nil, nil); !errors.Is(err, ErrBootstrapOutputUnavailable) {
+		t.Fatalf("Run with unavailable output = %v, want %v", err, ErrBootstrapOutputUnavailable)
+	}
+}
 
 func TestRunHelpAndUnknownCommandDoNotCreateFiles(t *testing.T) {
 	workdir := t.TempDir()
@@ -42,20 +47,5 @@ func TestRunHelpAndUnknownCommandDoNotCreateFiles(t *testing.T) {
 	}
 	if len(before) != len(after) {
 		t.Fatalf("Run created files in %s: before=%d after=%d", filepath.Base(workdir), len(before), len(after))
-	}
-}
-
-func TestBootstrapGREENConsumesUnknownCommandFixture(t *testing.T) {
-	var fixture struct {
-		Args         []string `json:"args"`
-		ExpectedExit int      `json:"expected_exit"`
-		CreatesFiles bool     `json:"creates_files"`
-	}
-	testutil.ReadJSONFixture(t, &fixture, "bootstrap", "unknown-command.json")
-	if len(fixture.Args) != 1 || fixture.ExpectedExit != 2 || fixture.CreatesFiles {
-		t.Fatalf("unexpected bootstrap green fixture: %+v", fixture)
-	}
-	if err := Run(context.Background(), fixture.Args, &bytes.Buffer{}, &bytes.Buffer{}); err == nil {
-		t.Fatal("Run accepted unknown command from fixture")
 	}
 }

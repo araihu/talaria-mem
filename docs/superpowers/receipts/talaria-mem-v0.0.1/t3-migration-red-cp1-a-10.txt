@@ -1,0 +1,24 @@
+task=cp1-a-10
+phase=RED
+scope=T3-migration-journal-authority
+source_commit=acf81d078240a74158bea0efa73efad9141d5e60
+source_tree=10bc94edc43471eb4baf14fb9bb9ea901d03a7ab
+command=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-10-red/reconstruct-red.sh
+expected_exit=1
+actual_exit=1
+fixtures=dirty-recovery-migration-2-and-migration-3-with-extra-column-journal-DDL
+failure_cause=the rejected source did not validate migration_journal before dirty recovery, so altered journal DDL with a valid-looking row reached recovery
+--- raw output ---
+=== RUN   TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery
+=== RUN   TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery/migration-2
+    migration_authority_cp1_a10_test.go:46: dirty recovery accepted an extra-column migration journal
+=== RUN   TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery/migration-3
+    migration_authority_cp1_a10_test.go:46: dirty recovery accepted an extra-column migration journal
+--- FAIL: TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery (0.12s)
+    --- FAIL: TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery/migration-2 (0.07s)
+    --- FAIL: TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery/migration-3 (0.05s)
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.486s
+FAIL
+task=cp1-a-10 scope=T3-migration-journal-authority phase=RED expected_exit=1 actual_exit=1
+--- end raw output ---

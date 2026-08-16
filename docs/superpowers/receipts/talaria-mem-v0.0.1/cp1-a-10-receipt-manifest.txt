@@ -1,0 +1,36 @@
+task=cp1-a-10
+phase=FROZEN-CANDIDATE
+candidate_parent=6892f5a20c59632cd9eb0d7f7922e05f17d80c44
+candidate_parent_tree=fbd107a7dfe2564e71790cbd9823cedb10ff91e3
+red_source_commit=acf81d078240a74158bea0efa73efad9141d5e60
+red_source_tree=10bc94edc43471eb4baf14fb9bb9ea901d03a7ab
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-10-red/reconstruct-red.sh sha256=59cb04c8f8b6ae723059cbec28fe3a34a002ed6f59aee9b072867b95c1658d00
+
+receipt=t3-migration-red-cp1-a-10.txt sha256=126f4c891007cbaa71fed00ed010e9988e43992421605a1f462503fbe7e26dbd expected_exit=1 actual_exit=1
+receipt=t3-migration-crash-green-cp1-a-10.txt sha256=531077e2118a864b4526007748908f5e990e7bf8ec6300250f130cde52293037 expected_exit=0 actual_exit=0
+receipt=t3-migration-green-cp1-a-10.txt sha256=73adeddac580d18748a8500bc6aaefe13cfd5acea17115180bf8cc9b6695ec65 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-green-cp1-a-10.txt sha256=fdedde6e36497b4521e28c3becbe9aeffd076be50bacf850e696af647f6bc686 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-red-cp1-a-10.txt sha256=fabf4bf220ebcadb6d22e6f0e58554ecd9d56960ee2eef38be999f532ef1eef9 outer_expected_exit=0 outer_actual_exit=0 nested_expected_exit=1 nested_actual_exit=1
+
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationRejectsPreJournal)' -count=1 -v" exit=0 receipt=t3-migration-green-cp1-a-10.txt
+gate=focused-t3-set-version-crash command="go test ./internal/adapters/sqlite -run '^TestMigrationDirtyRecoveryAfterSetVersionBeforeRun$' -count=1 -v" exit=0 receipt=t3-migration-crash-green-cp1-a-10.txt
+gate=focused-t3-a10 command="go test ./internal/adapters/sqlite -run '^TestMigrationCP1A10RejectsMalformedJournalBeforeDirtyRecovery$' -count=1 -v" exit=0
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
+gate=full-test command="GOCACHE=/tmp/talaria-mem-cp1-a10-final-go-cache-2 go test ./..." exit=0
+gate=full-race command="GOCACHE=/tmp/talaria-mem-cp1-a10-race-cache go test -race ./..." exit=0
+gate=vet command="GOCACHE=/tmp/talaria-mem-cp1-a10-vet-cache go vet ./..." exit=0
+gate=generate command="GOCACHE=/tmp/talaria-mem-cp1-a10-generate-cache go generate ./..." exit=0
+gate=generated-diff command="git diff --exit-code -- internal/adapters/sqlite/sqlc internal/adapters/sqlite/sqlc.manifest" exit=0
+gate=tidy command="GOWORK=off go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0 receipt=t3-sqlc-manifest-green-cp1-a-10.txt
+gate=sqlc-negative command="TALARIA_SQLC_NEGATIVE_TASK=cp1-a-10 make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1 receipt=t3-sqlc-manifest-red-cp1-a-10.txt
+gate=make-check command="GOCACHE=/tmp/talaria-mem-cp1-a10-check-cache make check" exit=0
+gate=production-failpoint-scan command="rg forbidden symbols in internal/adapters/sqlite/db.go; no matches" exit=0
+gate=future-ownership-scan command="test ! -e internal/adapters/filesystem && test ! -e internal/maintenance" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+implementation=validateMigrationAuthority invokes an exact canonical migration_journal DDL/STRICT/column/default/foreign-key/row-encoding/invariant validator before maintenance configuration, Force, Up, user_version, or journal writes; empty and malformed journal authority fails closed
+recovery=dirty migration-2 and migration-3 altered-journal states are rejected without schema/authority/user_version mutation; SetVersion-before-Run subprocess death remains durable and recoverable through test-only injection
+test_harness=subprocess-only crash adapter in *_test.go; no production failpoints, environment inspection, or process control
+ownership=CP1 retains T2 ports/fakes and T3 SQLite schema/queries/sqlc; concrete internal/adapters/filesystem and internal/maintenance implementations/tests remain absent for T9/T13 checkpoints
+freeze=code_parent_clean_before_evidence=yes; evidence_commit_to_follow; no merge/push/tag/reviewer-dispatch performed by this lane

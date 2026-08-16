@@ -1,0 +1,10 @@
+task=T2
+phase=GREEN
+negative_fixture=testdata/domain/unsafe-follow-or-invalid-phase.json
+fixture_sha256=aabadf1a7e53c3ea8229de1f4fbb7bd0d0ab854e205c517ab6c731232588c8db
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	0.583s
+ok  	github.com/guilhermecastro/talaria-mem/internal/ports	0.303s

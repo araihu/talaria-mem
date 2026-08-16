@@ -1,0 +1,12 @@
+task=cp1-a-3
+scope=T1 bootstrap
+phase=GREEN
+tested_source_commit=6bb73312b36b8582f26d423f0fd2536a91cef92b
+tested_source_tree=6eb365a882611272e23fa0a01c08a4ad9e58ba3d
+negative_fixture=testdata/bootstrap/cp1-a-3-missing-output-writer.json
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.178s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.342s

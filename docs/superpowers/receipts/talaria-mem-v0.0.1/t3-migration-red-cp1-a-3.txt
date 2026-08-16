@@ -1,0 +1,19 @@
+task=cp1-a-3
+scope=T3 migration
+phase=RED
+tested_source_commit=1ab97d1c1429ba188c3dd614db015c2d729c9d51
+tested_source_tree=179bef1465f9c3a7ecb2088ff7181481d8389e4f
+negative_fixture=testdata/sqlite/cp1-a-3-migration-ordering.json
+fixture_sha256=497443e98c068c9e561642e29caaf59d5e0904cc7a2cb9701940d9200b14f303
+red_harness=testdata/cp1-a-3/red-overlay/internal/adapters/sqlite/cp1_a3_migration_red_test.go
+harness_sha256=ee885e836aa2565c2af61ae900dfa128ae83d0d40e4bf04c7627949b7356d96c
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+expected_exit=1
+actual_exit=1
+failure_cause=ancestor migration journal declares managed_backups foreign key before migration 3 creates its parent
+raw_output:
+--- FAIL: TestMigrationRoundTripMissingJournalOrdering (0.01s)
+    cp1_a3_migration_red_test.go:27: migration journal has an early managed_backups foreign key
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.361s
+FAIL

@@ -16,7 +16,7 @@ type Querier interface {
 	DeleteAllFTSRows(ctx context.Context) error
 	DeleteFTSRow(ctx context.Context, memoryID string) error
 	DeleteUsageBefore(ctx context.Context, day string) (int64, error)
-	InsertFTSRow(ctx context.Context, arg InsertFTSRowParams) error
+	InsertEligibleFTSRow(ctx context.Context, id string) error
 	InsertPurgeOperation(ctx context.Context, arg InsertPurgeOperationParams) error
 	MoveCurrentRevision(ctx context.Context, arg MoveCurrentRevisionParams) (int64, error)
 	MoveInitialCurrentRevision(ctx context.Context, arg MoveInitialCurrentRevisionParams) (int64, error)

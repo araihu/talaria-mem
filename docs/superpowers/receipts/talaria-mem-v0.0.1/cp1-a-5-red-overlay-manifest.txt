@@ -1,0 +1,23 @@
+task=cp1-a-5
+phase=RED
+scope=T1 provider-free bootstrap; T2 activation; T3 explicit filesystem/schema/migration; T4 scanner
+source_t1_t3_commit=e03399430df655706612c33a83cc8a3905b9e775
+source_t1_t3_tree=ca1070ecc440aa81b2520d5b8b3bfce91f27c4c9
+source_t2_t4_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+source_t2_t4_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-5-red/reconstruct-red.sh
+reconstruction_sha256=22b58054cca52f82a536ac66b7c246ffd64178a6592c6a3f15121c8fb1a5d991
+overlay=cmd/talaria-mem/cp1_a5_bootstrap_red_test.go source=testdata/cp1-a-5/red-overlay/cmd/talaria-mem/cp1_a5_bootstrap_red_test.go sha256=4ed8213244a6562a44e5cb442d81af131196df73a9ef3ddf22392ef29173b3df
+overlay=internal/adapters/sqlite/cp1_a5_explicit_dependencies_test.go source=testdata/cp1-a-5/red-overlay/internal/adapters/sqlite/cp1_a5_explicit_dependencies_test.go sha256=cc40c9aace5a195b68b9e40a62034dcd76150dd1959fc1fdc2f3cae351cc43de
+overlay=internal/adapters/sqlite/cp1_a5_schema_red_test.go source=testdata/cp1-a-5/red-overlay/internal/adapters/sqlite/cp1_a5_schema_red_test.go sha256=f39476440a1c87fbf3dc509322f8f8ab2dea30184d63efaf0d493cc201f38932
+overlay=internal/adapters/sqlite/cp1_a5_migration_red_test.go source=testdata/cp1-a-5/red-overlay/internal/adapters/sqlite/cp1_a5_migration_red_test.go sha256=322df50c88be681964c077fbbeefdb1a37a490cafae8f5157c6be489a18f603c
+overlay=internal/ports/cp1_a5_activation_red_test.go source=testdata/cp1-a-5/red-overlay/internal/ports/cp1_a5_activation_red_test.go sha256=c4b428666b161aa390381c75af1ad1ef7e1b93f6d751360549c78413cc2bce02
+overlay=internal/scanner/cp1_a5_metadata_red_test.go source=testdata/cp1-a-5/red-overlay/internal/scanner/cp1_a5_metadata_red_test.go sha256=08e05151705fac10b1255b82474ec0ff3c2e21451ce8bedab922a03b2e0b3273
+fixture=testdata/bootstrap/cp1-a-5-provider-free.json sha256=97f3d89a94156a9b898ecf2703b5d8bee11a89c25e5ab3546e444cb28af632ae
+fixture=testdata/secrets/cp1-a-4-metadata-canary.json sha256=f939c7ff2467085cb326b21303ba083411abf0dd1659615992117e3f4cedd805
+command=T1 go test ./cmd/talaria-mem ./internal/testutil -count=1 expected_exit=1
+command=T3-explicit go test ./internal/adapters/sqlite -run '^TestSQLiteUsesExplicitFilesystemPortInjection$' -count=1 expected_exit=1
+command=T3-schema go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 expected_exit=1
+command=T3-migration go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1 expected_exit=1
+command=T2 go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 expected_exit=1
+command=T4 TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1 expected_exit=1

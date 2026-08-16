@@ -1,0 +1,9 @@
+task=cp1-a-7
+phase=RED-OVERLAY
+red_source_commit=e592d016577e4d9433ec1f624a11cfbfa3dc66d1
+red_source_tree=f73fd6c742c2e8f70ed05a13e97d06daf55b5553
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-7-red/reconstruct-red.sh sha256=e8e8e2751a2ff9db25df443faaae9668443b12ced5777cf842a3b2e8cb7a193f
+overlay=internal/adapters/sqlite/cp1_a7_migration_authority_red_test.go source=testdata/cp1-a-7/red-overlay/internal/adapters/sqlite/cp1_a7_migration_authority_red_test.go sha256=416000e17c7c5dabea3ca0450e67da3970ddadcedeee347dcb6bfb62ab0ddc6a
+command=go test ./internal/adapters/sqlite -run '^TestMigrationAuthorityCP1A7' -count=1 expected_exit=1 actual_exit=1
+fixtures=zero-authority-rows,duplicate-authority-rows,NULL-dirty,noncanonical-version-and-dirty,post-DDL-journal-less-migration-1,clean-authorities-without-final-journal
+immutability=source commit/tree and overlay bytes are verified before reconstruction; failure is behavioral and precedes correction

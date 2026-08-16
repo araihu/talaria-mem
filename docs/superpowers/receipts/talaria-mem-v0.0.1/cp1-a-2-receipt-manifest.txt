@@ -1,0 +1,35 @@
+task=cp1-a-2
+scope=T1-T4
+packet_sha256=75b3f07b9affc3e4be9237045dba599bfae9307b3eb080059b440918d8cc13b
+plan_sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+spec_sha256=1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5
+red_source_commit=45bfbc1bd6393bdca0d9c06ecf9101f4b557d106
+red_source_tree=cc5a1a5a67b26c9be2df646713d73750e0ae55a0
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+fixture=t1 testdata/bootstrap/cp1-a-2-reviewed-identity.json sha256=befbea82ca74fb227f666d6f399b7bcc591688186842d83da5a328c510cc3796
+fixture=t2 testdata/domain/cp1-a-2-active-pending-upgrade.json sha256=5108fbe6cc9387f6e11ea725fc5fd5229e6708d5001a594b74f034a4f843f0d1
+fixture=t3-schema testdata/sqlite/cp1-a-2-schema-generation.json sha256=9eea092b924bc24b2076b3de07fb6e2f4c6f371a624029dbb7169ed51e483c2b
+fixture=t3-migration testdata/sqlite/cp1-a-2-migration-protocol.json sha256=735a592162a71b36e3400e323cf0e54f88032ba6bed42b03588a722b631d8ab2
+fixture=t4 testdata/secrets/cp1-a-2-restricted-extend-fifo.json sha256=480a9db89f9eb3f8042cdac71173bb02374afc2e0666be07a852a17233f09b05
+red_receipt=t1-bootstrap-red-cp1-a-2.txt sha256=99280c0420040d93c29e86098829090481fefb13dee4e09cd10b64de3a7de628
+red_receipt=t2-domain-red-cp1-a-2.txt sha256=ed2db1001fd86713558ac80081b8589875c339bac9d6e22e100ae109f57673e3
+red_receipt=t3-sqlite-red-cp1-a-2.txt sha256=f61b99945e09facc1b5ed779c56d9be2034be06e6ae27726331a0535273f95bb
+red_receipt=t3-migration-red-cp1-a-2.txt sha256=98a6c82d7837f9afea0e5bf5fc88d7c129be377fec6b8744333c30a10288562e
+red_receipt=t4-scanner-red-cp1-a-2.txt sha256=f80a48c6e7159aa1d269b681208925f1e3879b21006ec665badd6785914ad1b8
+green_receipt=t1-bootstrap-green-cp1-a-2.txt sha256=feae0abd069e8726d15b189aea6342670eae98fb9c1e9cbdf2ceaf31f3c40d10
+green_receipt=t2-domain-green-cp1-a-2.txt sha256=c1e9802503b4fa60ba589a7043daafef423187a8347e4c637668fb0450c6e3f8
+green_receipt=t3-sqlite-green-cp1-a-2.txt sha256=94267dd253c1a06ed4b929c8c39c9603f890d0fce7e20b84a726333848906c36
+green_receipt=t3-migration-green-cp1-a-2.txt sha256=ee92ddff0401df2d9ac427cca366479fbb5e52354b2f21ed55dcd3d03e504862
+green_receipt=t4-scanner-green-cp1-a-2.txt sha256=34a486881d9f482106f30cb1ff983479bf19bc18574447f127e5d4267bb295bc
+sqlc_version=v1.29.0
+betterleaks_version=v1.7.4
+migration_protocol=golang-migrate/v4 modernc sqlite driver, iofs source, one transaction per migration, schema_migrations and migration_journal
+network=permanently_disabled
+make_check_sqlc_regeneration_diff=required by Makefile check
+make_check_command=make check
+make_check_expected_exit=0
+make_check_actual_exit=0
+combined_gate=go test ./... && go test -race ./... && go vet ./... && go generate ./... && go mod tidy -diff && git diff --check
+combined_gate_expected_exit=0
+combined_gate_actual_exit=0

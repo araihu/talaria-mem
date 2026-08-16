@@ -1,0 +1,10 @@
+task=cp1-a-10
+phase=GREEN
+scope=T3-sqlc-generated
+tested_source_commit=6892f5a20c59632cd9eb0d7f7922e05f17d80c44
+tested_source_tree=fbd107a7dfe2564e71790cbd9823cedb10ff91e3
+command=sh scripts/check-sqlc-generated.sh
+expected_exit=0
+actual_exit=0
+--- raw output ---
+--- end raw output ---

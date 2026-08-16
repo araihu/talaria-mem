@@ -115,3 +115,46 @@ func TestNormalizeV1(t *testing.T) {
 		t.Fatal("invalid UTF-8 accepted")
 	}
 }
+
+func TestValidateMemoryRevisionProvenanceBounds(t *testing.T) {
+	t.Parallel()
+	base := MemoryRevision{
+		ID: "018f1f61-7b5c-7abc-8def-0123456789ab", MemoryID: "018f1f61-7b5c-7abc-8def-1123456789ab",
+		Number: 1, Kind: MemoryKindState, Title: "title", Content: "body",
+		Trust: TrustVerified, Lifecycle: LifecycleActive,
+		CreatedAt: time.Date(2026, time.August, 15, 1, 2, 3, 4, time.UTC),
+	}
+	tests := []struct {
+		name       string
+		provenance Provenance
+	}{
+		{name: "too many labels", provenance: Provenance{Labels: make([]string, MaxProvenanceLabels+1)}},
+		{name: "label bytes", provenance: Provenance{Labels: []string{strings.Repeat("x", MaxProvenanceLabelBytes+1)}}},
+		{name: "label utf8", provenance: Provenance{Labels: []string{string([]byte{0xff})}}},
+		{name: "locator bytes", provenance: Provenance{SourceLocator: strings.Repeat("x", MaxSourceLocatorBytes+1)}},
+		{name: "locator utf8", provenance: Provenance{SourceLocator: string([]byte{0xff})}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := base
+			candidate.Provenance = test.provenance
+			if err := ValidateMemoryRevision(candidate); err == nil {
+				t.Fatal("unsafe provenance accepted")
+			}
+		})
+	}
+}
+
+func TestValidateMemoryRevisionFailureEmptyStateDefaultsOpen(t *testing.T) {
+	t.Parallel()
+	revision := MemoryRevision{
+		ID: "018f1f61-7b5c-7abc-8def-0123456789ab", MemoryID: "018f1f61-7b5c-7abc-8def-1123456789ab",
+		Number: 1, Kind: MemoryKindFailure, Title: "title", Content: "body",
+		Trust: TrustVerified, Lifecycle: LifecycleActive,
+		CreatedAt: time.Date(2026, time.August, 15, 1, 2, 3, 4, time.UTC),
+	}
+	state, err := ValidateResolutionState(revision.Kind, revision.ResolutionState)
+	if err != nil || state != ResolutionOpen {
+		t.Fatalf("failure empty state = %q, %v; want open", state, err)
+	}
+}

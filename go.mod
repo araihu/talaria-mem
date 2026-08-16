@@ -5,6 +5,8 @@ go 1.26.0
 require (
 	github.com/betterleaks/betterleaks v1.7.4
 	github.com/caarlos0/env/v11 v11.4.1
+	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/pelletier/go-toml/v2 v2.3.1
 	golang.org/x/text v0.41.0
 	modernc.org/sqlite v1.56.0
 )
@@ -46,7 +48,6 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/nwaples/rardecode/v2 v2.2.2 // indirect
-	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

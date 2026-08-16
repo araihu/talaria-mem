@@ -7,14 +7,6 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
 )
 
-type FTSRow struct {
-	MemoryID string
-	Eligible bool
-	Title    string
-	Content  string
-	Tags     string
-}
-
 type OutboxEvent struct {
 	ScopeID           string
 	RevisionWatermark int64
@@ -25,7 +17,10 @@ type MemoryTx interface {
 	CreateMemory(ctx context.Context, memory domain.Memory) error
 	CreateRevision(ctx context.Context, revision domain.MemoryRevision) error
 	MoveCurrentRevision(ctx context.Context, memoryID, expectedRevisionID string, revision domain.MemoryRevision) error
-	ReplaceFTSRow(ctx context.Context, row *FTSRow) error
+	// ReplaceFTSRow derives all fields and eligibility from authoritative rows
+	// inside the current transaction. Callers cannot supply content or an
+	// eligibility bit and therefore cannot bypass lifecycle/trust checks.
+	ReplaceFTSRow(ctx context.Context, memoryID string) error
 	AppendOutbox(ctx context.Context, event OutboxEvent) error
 }
 

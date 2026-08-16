@@ -1,0 +1,12 @@
+task=cp1-a-4
+scope=T1-bootstrap
+phase=GREEN
+tested_source_commit=d1544c9eb52b69bcff6d86eee4add3abf6b663aa
+tested_source_tree=55c222f75dcff99915aed05514e0b91f430286b9
+expected_exit=0
+actual_exit=0
+command=go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil
+raw_output_begin
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.815s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.482s
+raw_output_end

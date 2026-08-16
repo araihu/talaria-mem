@@ -1,0 +1,19 @@
+task=cp1-a-4
+scope=T3-sqlite-schema
+phase=RED
+tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-4-red/reconstruct-red.sh
+reconstruction_sha256=5b352d9e9b073ddd4167d4e67d9e4fde37f83d6d83982b67342f78b50a5a7237
+negative_fixture=internal/adapters/sqlite/cp1_a4_schema_red_test.go
+expected_exit=1
+actual_exit=1
+command=go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1
+raw_output_begin
+--- FAIL: TestSchemaCP1A4DurableActivationAudit (0.04s)
+    cp1_a4_schema_red_test.go:26: required durable table "activation_epoch_audit" is absent
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.853s
+FAIL
+task=cp1-a-4 scope=T3-sqlite-schema phase=RED tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925 tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1 expected_exit=1 actual_exit=1
+raw_output_end

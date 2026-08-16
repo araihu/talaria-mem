@@ -1,0 +1,12 @@
+task=cp1-a-5
+scope=T2-domain
+phase=GREEN
+tested_source_commit=e852fbcd56630bfb2e4be46700671646b749b1be
+tested_source_tree=0c6d98aaa86b4b37cc7162701922d98009f5bf39
+expected_exit=0
+actual_exit=0
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports
+raw_output_begin
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	0.587s
+ok  	github.com/guilhermecastro/talaria-mem/internal/ports	0.304s
+raw_output_end

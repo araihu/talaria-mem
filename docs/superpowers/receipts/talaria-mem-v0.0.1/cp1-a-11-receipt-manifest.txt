@@ -1,0 +1,35 @@
+task=cp1-a-11
+phase=FROZEN-CANDIDATE
+candidate_parent=c10ce4756c8f9c54c977aba7250c113f27526885
+candidate_parent_tree=902bd74319012339a269d2aff896497c7658f302
+red_source_commit=733e11773c08587774c8ce033d060f6f4281f033
+red_source_tree=11198d494697b3e1ab9ce81a3be99acd41d53c85
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-11-red/reconstruct-red.sh sha256=8543885f16822e926f6c593b3281bc10355b4513690ecedb40146741b2e693b9
+
+receipt=t3-migration-red-cp1-a-11.txt sha256=3534bc19a8ba9efc421a9195868c5de5cb6bef61dc302d9651732e6d0cd052be expected_exit=1 actual_exit=1
+receipt=t3-migration-crash-green-cp1-a-11.txt sha256=87a6c82a369f44129dd631698b03c17a8edb61e43a8fdb8561999d295c1fd0d5 expected_exit=0 actual_exit=0
+receipt=t3-migration-green-cp1-a-11.txt sha256=19a18d1a2064d30594c175ba86187fd032501484b917089fa114f64f58c3ea40 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-green-cp1-a-11.txt sha256=b86cfac591e923d302fce726a55c4389131e785e4a1b48eef44531d4a6d983c1 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-red-cp1-a-11.txt sha256=52649207558335f59f6d39ea1cf3da3f32d5d3bb2bc54b772e94f99f4bacfe16 outer_expected_exit=0 outer_actual_exit=0 nested_expected_exit=1 nested_actual_exit=1
+
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A11|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationRejectsPreJournal)' -count=1 -v" exit=0 receipt=t3-migration-green-cp1-a-11.txt
+gate=focused-t3-set-version-crash command="go test ./internal/adapters/sqlite -run '^TestMigrationDirtyRecoveryAfterSetVersionBeforeRun$' -count=1 -v" exit=0 receipt=t3-migration-crash-green-cp1-a-11.txt
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
+gate=full-test command="GOCACHE=/tmp/talaria-mem-cp1-a11-final-go-cache go test ./..." exit=0
+gate=full-race command="GOCACHE=/tmp/talaria-mem-cp1-a11-race-cache go test -race ./..." exit=0
+gate=vet command="GOCACHE=/tmp/talaria-mem-cp1-a11-vet-cache go vet ./..." exit=0
+gate=generate command="GOCACHE=/tmp/talaria-mem-cp1-a11-generate-cache go generate ./..." exit=0
+gate=generated-diff command="git diff --exit-code -- internal/adapters/sqlite/sqlc internal/adapters/sqlite/sqlc.manifest" exit=0
+gate=tidy command="GOWORK=off go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0 receipt=t3-sqlc-manifest-green-cp1-a-11.txt
+gate=sqlc-negative command="TALARIA_SQLC_NEGATIVE_TASK=cp1-a-11 make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1 receipt=t3-sqlc-manifest-red-cp1-a-11.txt
+gate=make-check command="GOCACHE=/tmp/talaria-mem-cp1-a11-check-cache make check" exit=0
+gate=production-failpoint-scan command="rg forbidden symbols in internal/adapters/sqlite/db.go; no matches" exit=0
+gate=future-ownership-scan command="test ! -e internal/adapters/filesystem && test ! -e internal/maintenance" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+implementation=validateMigrationAuthority rejects every non-allowlisted trigger/index/view associated with migration_journal or schema_migrations before recovery or final writes; journal rows require canonical UTC RFC3339Nano timestamps with updated_at >= started_at and strict stage/error/backup semantics
+recovery=clean-current and dirty-v2/v3 ancillary-object, malformed-time, and reversed-time states fail closed with byte-complete journal/authority/user_version/schema snapshots unchanged; SetVersion-before-Run subprocess crash recovery remains covered
+test_harness=subprocess-only crash adapter in *_test.go; no production failpoints, environment inspection, or process control
+ownership=CP1 retains T2 ports/fakes and T3 SQLite schema/queries/sqlc; concrete internal/adapters/filesystem and internal/maintenance implementations/tests remain absent for T9/T13 checkpoints
+freeze=code_parent_clean_before_evidence=yes; evidence_commit_to_follow; no merge/push/tag/reviewer-dispatch performed by this lane

@@ -1,0 +1,22 @@
+task=cp1-a-11
+phase=RED
+scope=T3-migration-authority-integrity
+source_commit=733e11773c08587774c8ce033d060f6f4281f033
+source_tree=11198d494697b3e1ab9ce81a3be99acd41d53c85
+command=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-11-red/reconstruct-red.sh
+expected_exit=1
+actual_exit=1
+fixtures=clean-current-and-dirty-v2-v3-ancillary-trigger-index-view;invalid-and-reversed-timestamps;full-authority-snapshot
+failure_cause=the rejected source ignored ancillary authority objects and accepted arbitrary/reversed migration-journal timestamps, allowing clean and dirty recovery paths to proceed
+--- raw output ---
+=== RUN   TestMigrationCP1A11RejectsAncillaryAuthorityObjectsWithoutMutation
+    migration_authority_cp1_a11_test.go:96: ancillary authority object was accepted
+--- FAIL: TestMigrationCP1A11RejectsAncillaryAuthorityObjectsWithoutMutation
+=== RUN   TestMigrationCP1A11RejectsInvalidOrReversedJournalTimestampsWithoutMutation
+    migration_authority_cp1_a11_test.go:146: invalid migration journal timestamps were accepted
+--- FAIL: TestMigrationCP1A11RejectsInvalidOrReversedJournalTimestampsWithoutMutation
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.720s
+FAIL
+task=cp1-a-11 scope=T3-migration-authority-integrity phase=RED expected_exit=1 actual_exit=1
+--- end raw output ---

@@ -1,0 +1,6 @@
+{
+  "task": "cp1-a-3",
+  "scope": "T2 activation port",
+  "negative_fixture": "missing activation epoch identity",
+  "expected_behavior": "durable epoch field and transition identity"
+}

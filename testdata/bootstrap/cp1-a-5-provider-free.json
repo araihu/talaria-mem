@@ -1,0 +1,5 @@
+{
+  "contract": "provider-free-bootstrap",
+  "forbidden_dependency": "github.com/guilhermecastro/talaria-mem/internal/adapters/filesystem",
+  "scope": "T1-bootstrap"
+}

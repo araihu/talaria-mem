@@ -1,0 +1,19 @@
+task=cp1-a-4
+phase=RED
+scope=T1 bootstrap; T2 domain/ports; T3 sqlite schema; T3 migration; T4 scanner
+source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-4-red/reconstruct-red.sh
+reconstruction_sha256=5b352d9e9b073ddd4167d4e67d9e4fde37f83d6d83982b67342f78b50a5a7237
+overlay=cmd/talaria-mem/cp1_a4_bootstrap_red_test.go source=testdata/cp1-a-4/red-overlay/cmd/talaria-mem/cp1_a4_bootstrap_red_test.go sha256=eea657ba1c9e95dab8c9f99332a09b754d5e9d87077ddac6b7827865f139ee3f
+overlay=internal/ports/cp1_a4_activation_red_test.go source=testdata/cp1-a-4/red-overlay/internal/ports/cp1_a4_activation_red_test.go sha256=9c95d369bc4f802d61a7704ba17e3644ff0f851b6aef70ed371623e7275d8707
+overlay=internal/adapters/sqlite/cp1_a4_schema_red_test.go source=testdata/cp1-a-4/red-overlay/internal/adapters/sqlite/cp1_a4_schema_red_test.go sha256=6c47fe001cab06eb6c92d0dc1281a556fb3ac32d8789f37d64a5686945672293
+overlay=internal/adapters/sqlite/cp1_a4_migration_red_test.go source=testdata/cp1-a-4/red-overlay/internal/adapters/sqlite/cp1_a4_migration_red_test.go sha256=fc0ca7bdcddb256539c540c86fd74875e355a00b1b2fa3f6360d58cfcbcab061
+overlay=internal/scanner/cp1_a4_metadata_red_test.go source=testdata/cp1-a-4/red-overlay/internal/scanner/cp1_a4_metadata_red_test.go sha256=f4e904007efc565fca2afb51aa2442403e0101d49ffeb9f118bbe2b0d6d4f349
+fixture=testdata/secrets/cp1-a-4-metadata-canary.json source=testdata/secrets/cp1-a-4-metadata-canary.json sha256=f939c7ff2467085cb326b21303ba083411abf0dd1659615992117e3f4cedd805
+fixture=testdata/bootstrap/cp1-a-4-composition-registration.json source=testdata/bootstrap/cp1-a-4-composition-registration.json sha256=6f6e9e42b7253bf1180df08c305f81dad38b42caf968bc12935babe88b928587
+command=T1 go test ./cmd/talaria-mem ./internal/testutil -count=1 expected_exit=1
+command=T2 go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 expected_exit=1
+command=T3-schema go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 expected_exit=1
+command=T3-migration go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1 expected_exit=1
+command=T4 TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1 expected_exit=1

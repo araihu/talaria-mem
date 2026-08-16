@@ -1,0 +1,22 @@
+task=cp1-a-6
+phase=RED
+source_commit=70b667b083d268a12f797247d34ef1c1943c97a9
+source_tree=738fbd7de2bed2f73368fd054fbf96f2ba0bcbdb
+command=go test ./internal/adapters/sqlite -run '^TestMigrationAuthorityCP1A6' -count=1
+expected_exit=1
+actual_exit=1
+fixture=divergent-clean-authorities,duplicate-schema-migrations-rows,altered-protocol-DDL,existing-version-without-journal
+--- raw output ---
+--- FAIL: TestMigrationAuthorityCP1A6RejectsDivergentCleanAuthoritiesWithoutMutation (0.02s)
+    cp1_a6_migration_authority_red_test.go:22: maintenance accepted divergent clean migration authorities
+--- FAIL: TestMigrationAuthorityCP1A6RejectsDuplicateRows (0.00s)
+    cp1_a6_migration_authority_red_test.go:46: duplicate migration authority rows were accepted
+--- FAIL: TestMigrationAuthorityCP1A6RejectsAlteredProtocolDDL (0.02s)
+    cp1_a6_migration_authority_red_test.go:70: ordinary open accepted altered migration protocol DDL
+--- FAIL: TestMigrationAuthorityCP1A6RejectsExistingVersionWithoutJournal (0.02s)
+    cp1_a6_migration_authority_red_test.go:87: existing migration version without journal was accepted
+FAIL
+FAIL github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite 0.558s
+--- end raw output ---
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-6-red/reconstruct-red.sh
+reconstruction_sha256=e5e249585cef08263461071f772bc9b67902a5572a1faf5bca6babb8fe6f82ae

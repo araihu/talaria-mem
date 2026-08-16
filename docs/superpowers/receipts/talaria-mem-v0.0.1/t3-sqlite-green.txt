@@ -1,0 +1,11 @@
+task=T3
+phase=GREEN
+negative_fixture=testdata/sqlite/fts-eligibility-drift.json
+fixture_sha256=53d4b35a53713cf6a214339c426fcf3f849acf175b8c341d781027cc3f49621b
+command=go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f db/sqlc.yaml && go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite
+expected_exit=0
+actual_exit=0
+sqlc_version=v1.29.0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.329s
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	2.586s

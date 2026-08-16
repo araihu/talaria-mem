@@ -1,0 +1,11 @@
+task=cp1-a-9
+phase=RED
+scope=T3-sqlc-generated-negative
+tested_source_commit=1cc33a4e41f684bb292189b5fe44a32bf222f065
+tested_source_tree=8288356fb82a255f15d8c99daa7efb9198fb54e1
+command=TALARIA_SQLC_NEGATIVE_TASK=cp1-a-9 make sqlc-negative
+outer_expected_exit=0
+outer_actual_exit=0
+nested_expected_exit=1
+nested_actual_exit=1
+failure=sqlc generated manifest drifted; run make sqlc-generate

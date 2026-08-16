@@ -1,0 +1,71 @@
+task=cp1-a-8
+phase=GREEN
+scope=T3-migration-authority
+command=go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationDirtyRecovery|TestMigrationRejectsPreJournal)' -count=1 -v
+expected_exit=0
+actual_exit=0
+fixtures=atomic-authority-initialization-after-process-death,atomic-pre-DDL-reset-after-process-death,zero-row,duplicate-row,NULL-dirty,noncanonical-authority,exact-pre-DDL-journal-less,post-DDL-journal-less,final-journal-evidence,divergent-authorities,altered-protocol-DDL,above-target,missing-journal,unknown-stage,round-trip
+--- raw output ---
+=== RUN   TestMigrationAuthorityCP1A7RejectsZeroRowsWithoutMutation
+--- PASS: TestMigrationAuthorityCP1A7RejectsZeroRowsWithoutMutation (0.00s)
+=== RUN   TestMigrationAuthorityCP1A7RejectsDuplicateRowsWithoutMutation
+--- PASS: TestMigrationAuthorityCP1A7RejectsDuplicateRowsWithoutMutation (0.00s)
+=== RUN   TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation
+=== RUN   TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation/null-dirty
+=== RUN   TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation/text-version
+=== RUN   TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation/text-dirty
+--- PASS: TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation (0.01s)
+    --- PASS: TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation/null-dirty (0.00s)
+    --- PASS: TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation/text-version (0.00s)
+    --- PASS: TestMigrationAuthorityCP1A7RejectsNullDirtyAndNonCanonicalValuesWithoutMutation/text-dirty (0.00s)
+=== RUN   TestMigrationAuthorityCP1A7AllowsOnlyExactPreDDLJournallessMigrationOne
+--- PASS: TestMigrationAuthorityCP1A7AllowsOnlyExactPreDDLJournallessMigrationOne (0.01s)
+=== RUN   TestMigrationAuthorityCP1A7RejectsPostDDLJournallessMigrationOneWithoutMutation
+--- PASS: TestMigrationAuthorityCP1A7RejectsPostDDLJournallessMigrationOneWithoutMutation (0.00s)
+=== RUN   TestMigrationAuthorityCP1A7RequiresFinalJournalEvidence
+--- PASS: TestMigrationAuthorityCP1A7RequiresFinalJournalEvidence (0.01s)
+=== RUN   TestMigrationCP1A8CrashHelper
+--- PASS: TestMigrationCP1A8CrashHelper (0.00s)
+=== RUN   TestMigrationCP1A8AtomicAuthorityInitializationAfterProcessDeath
+--- PASS: TestMigrationCP1A8AtomicAuthorityInitializationAfterProcessDeath (0.03s)
+=== RUN   TestMigrationCP1A8AtomicPreDDLResetAfterProcessDeath
+--- PASS: TestMigrationCP1A8AtomicPreDDLResetAfterProcessDeath (0.03s)
+=== RUN   TestMigrationAuthorityCP1A6RejectsDivergentCleanAuthoritiesWithoutMutation
+--- PASS: TestMigrationAuthorityCP1A6RejectsDivergentCleanAuthoritiesWithoutMutation (0.01s)
+=== RUN   TestMigrationAuthorityCP1A6RejectsDuplicateRows
+--- PASS: TestMigrationAuthorityCP1A6RejectsDuplicateRows (0.00s)
+=== RUN   TestMigrationAuthorityCP1A6RejectsAlteredProtocolDDL
+--- PASS: TestMigrationAuthorityCP1A6RejectsAlteredProtocolDDL (0.02s)
+=== RUN   TestMigrationAuthorityCP1A6RejectsExistingVersionWithoutJournal
+--- PASS: TestMigrationAuthorityCP1A6RejectsExistingVersionWithoutJournal (0.02s)
+=== RUN   TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation
+=== RUN   TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/clean-schema-authority
+=== RUN   TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/dirty-schema-authority
+=== RUN   TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/clean-user-authority
+=== RUN   TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/dirty-user-authority
+--- PASS: TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation (0.01s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/clean-schema-authority (0.00s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/dirty-schema-authority (0.00s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/clean-user-authority (0.00s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsAboveTargetWithoutMutation/dirty-user-authority (0.00s)
+=== RUN   TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions
+=== RUN   TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions/version-1
+=== RUN   TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions/version-2
+=== RUN   TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions/version-3
+--- PASS: TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions (0.03s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions/version-1 (0.01s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions/version-2 (0.01s)
+    --- PASS: TestMigrationAuthorityCP1A6RejectsMissingJournalAtExistingVersions/version-3 (0.01s)
+=== RUN   TestMigrationDirtyRecoveryFailsClosedForUnknownStage
+--- PASS: TestMigrationDirtyRecoveryFailsClosedForUnknownStage (0.01s)
+=== RUN   TestMigrationDirtyRecoveryFailsClosedAboveTarget
+--- PASS: TestMigrationDirtyRecoveryFailsClosedAboveTarget (0.01s)
+=== RUN   TestMigrationRoundTrip
+--- PASS: TestMigrationRoundTrip (0.03s)
+=== RUN   TestMigrationRoundTripMigrationJournalOrdering
+--- PASS: TestMigrationRoundTripMigrationJournalOrdering (0.01s)
+=== RUN   TestMigrationRejectsPreJournalVersionWithoutJournal
+--- PASS: TestMigrationRejectsPreJournalVersionWithoutJournal (0.01s)
+PASS
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.499s
+--- end raw output ---

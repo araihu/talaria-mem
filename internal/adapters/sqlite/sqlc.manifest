@@ -1,0 +1,7 @@
+4319d8eacca42f5b6d326d8945e6958979fd6f82fb5438ebaea43c5d3c71f7db  internal/adapters/sqlite/sqlc/db.go
+83f5b4fedb8875757941de877f6bab4a1832d08d24cd2780c9c3bd0f1cfd32ec  internal/adapters/sqlite/sqlc/maintenance.sql.go
+d865fd0c25ee503fb0418035b6d0496d698e705373bf51698e92bf89ee3da67e  internal/adapters/sqlite/sqlc/memory.sql.go
+4aee7bbf296ac9fc72a5809c6e084b7763bdeee2708c4ff0744fcb0b3e57ccbe  internal/adapters/sqlite/sqlc/models.go
+87aaacb4cde1c337fb986a5c2b841c50588cb2ab5e4dfd2d5d082f688ab1abfd  internal/adapters/sqlite/sqlc/querier.go
+71fe03829448dbefd621a95cc80b789cff97f0083728ce0e926fc93872b69c3c  internal/adapters/sqlite/sqlc/usage.sql.go
+144431f87f4bee832ef0048f17e3e4668feb2208a6b8a6aa3ccaf964e568a32c  internal/adapters/sqlite/sqlc/workspace.sql.go

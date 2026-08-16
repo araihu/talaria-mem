@@ -1,0 +1,5 @@
+{
+  "contract": "managed-filesystem-composition",
+  "scope": "T1-bootstrap",
+  "negative_fixture": "rejected source has no T9 filesystem registration"
+}

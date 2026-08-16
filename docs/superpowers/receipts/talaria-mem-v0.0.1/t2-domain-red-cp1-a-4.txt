@@ -1,0 +1,20 @@
+task=cp1-a-4
+scope=T2-domain
+phase=RED
+tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-4-red/reconstruct-red.sh
+reconstruction_sha256=5b352d9e9b073ddd4167d4e67d9e4fde37f83d6d83982b67342f78b50a5a7237
+negative_fixture=internal/ports/cp1_a4_activation_red_test.go
+expected_exit=1
+actual_exit=1
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1
+raw_output_begin
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	1.022s
+--- FAIL: TestActivationJournalCP1A4RejectsUnsafeRecoveryAndIdentity (0.00s)
+    cp1_a4_activation_red_test.go:20: orphan candidate fingerprint was accepted
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/ports	1.279s
+FAIL
+task=cp1-a-4 scope=T2-domain phase=RED tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925 tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1 expected_exit=1 actual_exit=1
+raw_output_end

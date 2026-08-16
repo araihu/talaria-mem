@@ -1,0 +1,27 @@
+task=cp1-a-3
+phase=RED
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-3-red/reconstruct-red.sh
+reconstruction_sha256=7ad6759de55728d34b8161633fe4b9bff51baddd638e0d65baf80456877c81c3
+source_commit=1ab97d1c1429ba188c3dd614db015c2d729c9d51
+source_tree=179bef1465f9c3a7ecb2088ff7181481d8389e4f
+overlay=cmd/talaria-mem/cp1_a3_bootstrap_red_test.go source=testdata/cp1-a-3/red-overlay/cmd/talaria-mem/cp1_a3_bootstrap_red_test.go sha256=517228f6dafdd5b754a85ead14d7fda39f9b95d27dba7577ed1da67793657e44
+overlay=internal/adapters/sqlite/cp1_a3_migration_red_test.go source=testdata/cp1-a-3/red-overlay/internal/adapters/sqlite/cp1_a3_migration_red_test.go sha256=ee885e836aa2565c2af61ae900dfa128ae83d0d40e4bf04c7627949b7356d96c
+overlay=internal/ports/cp1_a3_activation_red_test.go source=testdata/cp1-a-3/red-overlay/internal/ports/cp1_a3_activation_red_test.go sha256=11190e9b8d35c0b0fe75b27011055c72bd8eef52786c448e3d21d609953f4b61
+overlay=internal/adapters/sqlite/cp1_a3_schema_red_test.go source=testdata/cp1-a-3/red-overlay/internal/adapters/sqlite/cp1_a3_schema_red_test.go sha256=1aa72ed3fa9bd3ec02eaca37b16705028e958900b708fa82bbb45feea93980a5
+fixture=testdata/bootstrap/cp1-a-3-missing-output-writer.json sha256=fe74355a2604acbb90f18f537bb852792ae81914b5c0fdaeba1887e846096169
+fixture=testdata/domain/cp1-a-3-activation-epoch.json sha256=c269f7648427c3694097d0ba411d0952ed8249f0ffe726305a77155954dfff30
+fixture=testdata/sqlite/cp1-a-3-migration-ordering.json sha256=497443e98c068c9e561642e29caaf59d5e0904cc7a2cb9701940d9200b14f303
+fixture=testdata/sqlite/cp1-a-3-schema-failure-stage.json sha256=943a5fbeb44250410844ad6fd7a0083131e9accdda556a5ee8f2cb0f015a3615
+receipt=docs/superpowers/receipts/talaria-mem-v0.0.1/t1-bootstrap-red-cp1-a-3.txt sha256=35c83398f7d2d2a8900656ba2c81fe6e0ef98c4046684847529f9da85dee4bb5
+receipt=docs/superpowers/receipts/talaria-mem-v0.0.1/t2-domain-red-cp1-a-3.txt sha256=0c9e7fcadd2d4282822a52d7e881276ccb3bfa706561755011a5f9f10c8f0e10
+receipt=docs/superpowers/receipts/talaria-mem-v0.0.1/t3-sqlite-red-cp1-a-3.txt sha256=5d375689cd34f2f97c63a9547198d4cf9c754dd1286a0a9849d179c1ca7f66b6
+receipt=docs/superpowers/receipts/talaria-mem-v0.0.1/t3-migration-red-cp1-a-3.txt sha256=92616271438d12ccc22b741a72a581577b8de80ea89f52427166d4f75f60a6b9
+reconstruction_exit=0
+t1_command=go test ./cmd/talaria-mem ./internal/testutil -count=1
+t1_expected_exit=1
+t2_command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1
+t2_expected_exit=1
+t3_schema_command=go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1
+t3_schema_expected_exit=1
+t3_command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+t3_expected_exit=1

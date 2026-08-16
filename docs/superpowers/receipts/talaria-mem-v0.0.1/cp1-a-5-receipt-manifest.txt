@@ -1,0 +1,46 @@
+task=cp1-a-5
+phase=FROZEN-CANDIDATE
+candidate_parent_commit=e852fbcd56630bfb2e4be46700671646b749b1be
+candidate_parent_tree=0c6d98aaa86b4b37cc7162701922d98009f5bf39
+green_source_commit=e852fbcd56630bfb2e4be46700671646b749b1be
+green_source_tree=0c6d98aaa86b4b37cc7162701922d98009f5bf39
+red_overlay_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-5-red-overlay-manifest.txt
+red_overlay_manifest_sha256=d09f31feb6d1f46a00f62bdb22052e222dc10c96a7dcef1a17378be61897e3d3
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-5-red/reconstruct-red.sh
+red_reconstruction_sha256=22b58054cca52f82a536ac66b7c246ffd64178a6592c6a3f15121c8fb1a5d991
+
+receipt=t1-bootstrap-red-cp1-a-5.txt sha256=232f859dfdc5c2a5a0ef2b944d81dd85addf3cba4fe0b8b601e137d4811d56b0 expected_exit=1 actual_exit=1
+receipt=t2-domain-red-cp1-a-5.txt sha256=dfd8a3bee2576f135ec1251d6d690a63548992a9491311bdac5f57e4124a90e4 expected_exit=1 actual_exit=1
+receipt=t3-filesystem-red-cp1-a-5.txt sha256=7a02a4c3569a9b52000ca086b3b3589e8a776f5e58e0c67ee5775d0b86178e94 expected_exit=1 actual_exit=1
+receipt=t3-sqlite-red-cp1-a-5.txt sha256=5a7c9d3b4cd28fe0ac2008009596bd7ed39001610221ab1a005a229c2b103bb9 expected_exit=1 actual_exit=1
+receipt=t3-migration-red-cp1-a-5.txt sha256=9c59e81bd51883ec5002776a62959979704489eb632c52c0894c2f29566de6b3 expected_exit=1 actual_exit=1
+receipt=t4-scanner-red-cp1-a-5.txt sha256=c32126f314ef5a308ca3aad9ed7e5023c96655a5004c5a205805e3f8d39829bc expected_exit=1 actual_exit=1
+receipt=t3-sqlc-manifest-red-cp1-a-5.txt sha256=be6a9a56ec3206559d79f89eb86e286b097e97c2128ec053cce83f5f813fc0cd nested_expected_exit=1 nested_actual_exit=1
+receipt=t1-bootstrap-green-cp1-a-5.txt sha256=35a0b9ce1d33a6e32d7c8db461848177894dc5188c802533d15b44bfbc8c6c42 expected_exit=0 actual_exit=0
+receipt=t2-domain-green-cp1-a-5.txt sha256=99aed25a31b8901885cc46528811bca4a680ce7017bae06be624df8925d1d4d5 expected_exit=0 actual_exit=0
+receipt=t3-filesystem-green-cp1-a-5.txt sha256=b1ed0709a9d693d63d83aa418d4f859b5d681bd449e3aab94834ed09bb77e217 expected_exit=0 actual_exit=0
+receipt=t3-sqlite-green-cp1-a-5.txt sha256=c7f67fe2dfd622f5ed60977cbed4ffd86e0127616adcd40fbbda3354335446fd expected_exit=0 actual_exit=0
+receipt=t3-migration-green-cp1-a-5.txt sha256=0c31e024814fb64b1dd6ddc921459745f8cef4b77a6804de66d6eea7c2809b53 expected_exit=0 actual_exit=0
+receipt=t4-scanner-green-cp1-a-5.txt sha256=da09e0e05b3d03300ce76af6eb23b6b1b83c8c74490530974f4846a4f73eb4c0 expected_exit=0 actual_exit=0
+
+gate=focused-t1 command="go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil" exit=0
+gate=focused-t2 command="go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports" exit=0
+gate=focused-t3-filesystem command="go test ./internal/adapters/sqlite -run '^TestSQLiteUsesExplicitFilesystemPortInjection$' -count=1" exit=0
+gate=focused-t3-schema command="go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite" exit=0
+gate=focused-t3-migration command="go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1" exit=0
+gate=focused-t4 command="TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1" exit=0
+gate=full-test-vet command="go test ./... && go vet ./..." exit=0
+gate=full-race command="go test -race ./..." exit=0
+gate=generate command="go generate ./..." exit=0
+gate=tidy command="go mod tidy -diff" exit=0
+gate=sqlc-check command="sh scripts/check-sqlc-generated.sh" exit=0
+gate=sqlc-negative command="make sqlc-negative" exit=0 nested_expected_exit=1 nested_actual_exit=1
+gate=diff-check command="git diff --check" exit=0
+gate=make-check command="make check" exit=0
+
+betterleaks_version=v1.7.4
+scanner_network=disabled
+sqlc_version=v1.29.0
+architecture=provider-free-T1-explicit-T3-injection-no-package-init
+schema_contract=canonical-fingerprint-plus-required-objects
+migration_journal=run-bound-durable-write-fail-closed-legacy-materialization

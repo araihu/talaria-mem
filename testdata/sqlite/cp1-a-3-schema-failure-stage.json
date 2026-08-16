@@ -1,0 +1,6 @@
+{
+  "task": "cp1-a-3",
+  "scope": "T3 schema",
+  "negative_fixture": "migration journal lacks failure-stage vocabulary",
+  "expected_behavior": "durable crash-position stage column"
+}

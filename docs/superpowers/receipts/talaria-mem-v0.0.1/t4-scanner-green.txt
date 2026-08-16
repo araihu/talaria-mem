@@ -1,0 +1,11 @@
+task=T4
+phase=GREEN
+negative_fixture=testdata/secrets/canary-in-log-or-error.json
+fixture_sha256=267052e2e0abb9822b8b4a8e63743de03ab5af38fea23a5b2ee81306516eb1c5
+command=TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1
+expected_exit=0
+actual_exit=0
+network=permanently disabled
+betterleaks=v1.7.4
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/scanner	2.571s

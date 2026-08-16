@@ -10,3 +10,4 @@ DROP TABLE IF EXISTS memories;
 DROP TABLE IF EXISTS workspace_redirects;
 DROP TABLE IF EXISTS workspace_bindings;
 DROP TABLE IF EXISTS workspaces;
+DROP TABLE IF EXISTS migration_journal;

@@ -1,0 +1,19 @@
+task=T1
+phase=RED
+tested_source_commit=85d34efbb2c58d3fa37d36d1d0509f38f2d47688
+tested_source_tree=d1a37b3c70b457e8bdd53330c15ef608a4373234
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+negative_fixture=testdata/bootstrap/missing-entrypoint.json
+fixture_sha256=7aa5fd6fd0ce08eb723d8221cc455d0db3a1ddac230f2db2b4b26725455860c8
+red_harness=temporary uncommitted cmd/talaria-mem/cp1_red_test.go in rejected-source scratch worktree
+command=go test ./cmd/talaria-mem ./internal/testutil -run 'TestRunHelpAndUnknownCommandDoNotCreateFiles|TestCP1BootstrapReceiptExists' -count=1
+expected_exit=1
+actual_exit=1
+raw_output:
+--- FAIL: TestCP1BootstrapReceiptExists (0.00s)
+    cp1_red_test.go:10: bootstrap RED receipt missing: stat ../../docs/superpowers/receipts/talaria-mem-v0.0.1/t1-bootstrap-red.txt: no such file or directory
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	0.585s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	0.319s [no tests to run]
+FAIL

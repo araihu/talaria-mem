@@ -1,0 +1,21 @@
+task=cp1-a-3
+scope=T2 domain/ports
+phase=RED
+tested_source_commit=1ab97d1c1429ba188c3dd614db015c2d729c9d51
+tested_source_tree=179bef1465f9c3a7ecb2088ff7181481d8389e4f
+negative_fixture=testdata/domain/cp1-a-3-activation-epoch.json
+fixture_sha256=c269f7648427c3694097d0ba411d0952ed8249f0ffe726305a77155954dfff30
+red_harness=testdata/cp1-a-3/red-overlay/internal/ports/cp1_a3_activation_red_test.go
+harness_sha256=11190e9b8d35c0b0fe75b27011055c72bd8eef52786c448e3d21d609953f4b61
+command=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1
+expected_exit=1
+actual_exit=1
+failure_cause=ancestor ActivationRecord has no durable activation epoch field
+raw_output:
+# github.com/guilhermecastro/talaria-mem/internal/ports [github.com/guilhermecastro/talaria-mem/internal/ports.test]
+internal/ports/cp1_a3_activation_red_test.go:8:29: unknown field ActivationEpoch in struct literal of type ActivationRecord
+internal/ports/cp1_a3_activation_red_test.go:9:12: record.ActivationEpoch undefined (type ActivationRecord has no field or method ActivationEpoch)
+ok   	github.com/guilhermecastro/talaria-mem/internal/domain	0.341s
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/ports	[build failed]
+FAIL

@@ -1,0 +1,4 @@
+{
+  "negative": "legacy reviewed rule generation",
+  "expected": "journal identity equals Betterleaks v1.7.4 plus reviewed SHA-256"
+}

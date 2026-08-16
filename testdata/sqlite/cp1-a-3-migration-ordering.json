@@ -1,0 +1,6 @@
+{
+  "task": "cp1-a-3",
+  "scope": "T3 migration",
+  "negative_fixture": "migration journal foreign key references a later table",
+  "expected_behavior": "round trip succeeds without early foreign key"
+}

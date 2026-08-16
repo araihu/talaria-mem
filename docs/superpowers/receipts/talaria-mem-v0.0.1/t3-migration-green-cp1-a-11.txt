@@ -1,0 +1,14 @@
+task=cp1-a-11
+phase=GREEN
+scope=T3-migration-authority-integrity-and-recovery
+tested_source_commit=c10ce4756c8f9c54c977aba7250c113f27526885
+tested_source_tree=902bd74319012339a269d2aff896497c7658f302
+command=go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A11|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationRejectsPreJournal)' -count=1 -v
+expected_exit=0
+actual_exit=0
+fixtures=clean-current-and-dirty-v2-v3-ancillary-trigger-index-view-rejection;canonical-and-ordered-timestamps;full-journal-row-authority-user-version-schema-snapshot;SetVersion-before-Run-v2-v3-subprocess-death;prior-crash-windows
+controls=authority-object-validation-before-Force-Up-user_version-journal-write;strict-UTC-RFC3339Nano-and-monotonic-times;stage-error-backup-invariants;ordinary-open-fail-closed
+--- raw output ---
+PASS
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	3.692s
+--- end raw output ---

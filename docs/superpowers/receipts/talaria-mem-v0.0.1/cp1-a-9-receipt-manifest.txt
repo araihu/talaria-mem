@@ -1,0 +1,34 @@
+task=cp1-a-9
+phase=FROZEN-CANDIDATE
+candidate_parent=1cc33a4e41f684bb292189b5fe44a32bf222f065
+candidate_parent_tree=8288356fb82a255f15d8c99daa7efb9198fb54e1
+red_source_commit=dc491fd7060cde7e137ccca4931ee5b12db0928a
+red_source_tree=e978d791701520a16f6850c20f893e4bc7edf8ca
+red_reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-9-red/reconstruct-red.sh sha256=a985af4c0c0e79e9f31d354cfd501ec7f717ee37e3d5ad617d2da141cab95aab
+
+receipt=t3-migration-red-cp1-a-9.txt sha256=c8fac7014a82db81fc622efcc74559e7db83bc3f533395ffa86e8b3153673662 expected_exit=1 actual_exit=1
+receipt=t3-migration-crash-green-cp1-a-9.txt sha256=dd254348393fa3b9af0a5d63bf2ff621aea343b63b6094c50412f235fb7c30f4 expected_exit=0 actual_exit=0
+receipt=t3-migration-green-cp1-a-9.txt sha256=011ece4cc957c887659bd04a70cbc4c518241489438c63dd9fdf7183c1eadd01 expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-green-cp1-a-9.txt sha256=a93fc4e097c3ce857d116882074c16c02fe292cdd7ee05fb0e1c057a9ff5e03e expected_exit=0 actual_exit=0
+receipt=t3-sqlc-manifest-red-cp1-a-9.txt sha256=a67be9617ddad1fe32fe364cc3cf4e93b743c17ecd3acb2d06fcc20a87b8b380 outer_expected_exit=0 outer_actual_exit=0 nested_expected_exit=1 nested_actual_exit=1
+
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationRejectsPreJournal)' -count=1 -v" exit=0 receipt=t3-migration-green-cp1-a-9.txt
+gate=focused-t3-set-version-crash command="go test ./internal/adapters/sqlite -run '^TestMigrationDirtyRecoveryAfterSetVersionBeforeRun$' -count=1 -v" exit=0 receipt=t3-migration-crash-green-cp1-a-9.txt
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
+gate=full-test command="GOCACHE=/tmp/talaria-mem-cp1-a9-final-go-cache go test ./..." exit=0
+gate=full-race command="GOCACHE=/tmp/talaria-mem-cp1-a9-gocache go test -race ./..." exit=0
+gate=vet command="GOCACHE=/tmp/talaria-mem-cp1-a9-final-go-cache go vet ./..." exit=0
+gate=generate command="GOCACHE=/tmp/talaria-mem-cp1-a9-gocache go generate ./..." exit=0
+gate=tidy command="GOWORK=off go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0 receipt=t3-sqlc-manifest-green-cp1-a-9.txt
+gate=sqlc-negative command="TALARIA_SQLC_NEGATIVE_TASK=cp1-a-9 make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1 receipt=t3-sqlc-manifest-red-cp1-a-9.txt
+gate=make-check command="GOCACHE=/tmp/talaria-mem-cp1-a9-check make check" exit=0
+gate=production-failpoint-scan command="rg forbidden symbols in internal/adapters/sqlite/db.go; no matches" exit=0
+gate=future-ownership-scan command="test ! -e internal/adapters/filesystem && test ! -e internal/maintenance" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+implementation=journal started evidence is inserted before golang-migrate SetVersion(target,true); Run updates same row, preserving crash identity through before-Run, rollback-before-commit, and applied-DDL-before-clean windows
+recovery=maintenance classifies pre-DDL started evidence against schema fingerprint/postcondition; ordinary Open rejects dirty authority before recovery and accepts only final clean evidence after recovery
+test_harness=subprocess-only callback in *_test.go; no production migration failpoint, environment inspection, or process control
+ownership=CP1 retains T2 ports/fakes and T3 SQLite schema/queries/sqlc; concrete internal/adapters/filesystem and internal/maintenance implementations/tests removed for T9/T13 checkpoints
+toolchain=Betterleaks v1.7.4; sqlc v1.29.0; scanner no-egress preserved

@@ -14,6 +14,8 @@ Usage:
   talaria-mem --help
 `
 
+var ErrBootstrapOutputUnavailable = errors.New("bootstrap output is unavailable")
+
 // UsageError reports invalid bootstrap command-line input.
 type UsageError struct {
 	Command string
@@ -34,6 +36,9 @@ func IsUsageError(err error) bool {
 func Run(ctx context.Context, args []string, stdout, _ io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if stdout == nil {
+		return ErrBootstrapOutputUnavailable
 	}
 
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h" || args[0] == "help") {

@@ -1,0 +1,29 @@
+task=T1
+phase=GREEN
+negative_fixture=testdata/bootstrap/untracked-binary-or-temp.json
+fixture_sha256=5c7f06c57403c11d03fb4581399b284e46526bdee083e63e4a1b4905c7f558cb
+command=make check
+expected_exit=0
+actual_exit=0
+raw_output:
+go test ./...
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	(cached)
+?   	github.com/guilhermecastro/talaria-mem/db	[no test files]
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.314s
+?   	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite/sqlc	[no test files]
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	(cached)
+ok  	github.com/guilhermecastro/talaria-mem/internal/ports	(cached)
+ok  	github.com/guilhermecastro/talaria-mem/internal/scanner	0.558s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	(cached)
+go test -race ./...
+ok  	github.com/guilhermecastro/talaria-mem/cmd/talaria-mem	1.534s
+?   	github.com/guilhermecastro/talaria-mem/db	[no test files]
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	(cached)
+?   	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite/sqlc	[no test files]
+ok  	github.com/guilhermecastro/talaria-mem/internal/domain	2.140s
+ok  	github.com/guilhermecastro/talaria-mem/internal/ports	1.854s
+ok  	github.com/guilhermecastro/talaria-mem/internal/scanner	3.017s
+ok  	github.com/guilhermecastro/talaria-mem/internal/testutil	1.315s
+go vet ./...
+go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f db/sqlc.yaml
+go generate ./...

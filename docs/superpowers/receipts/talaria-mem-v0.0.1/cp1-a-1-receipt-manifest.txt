@@ -1,0 +1,30 @@
+task=cp1-a-1
+scope=T1-T4
+packet_sha256=75b3f07b9affc3e4be9237045dba599bfae9307b3eb080059b440918d8cc13b
+plan_sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+spec_sha256=1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5
+red_source_commit=85d34efbb2c58d3fa37d36d1d0509f38f2d47688
+red_source_tree=d1a37b3c70b457e8bdd53330c15ef608a4373234
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+red_receipt=t1-bootstrap-red.txt sha256=f540ea065381b0349cad27ef1095ccb5953e92ad2f14b9a1b448f53319946692
+red_receipt=t2-domain-red.txt sha256=fd5b90b38ae27e710c5ec50e1321605b3747a1a5516416cf3d638406d2754fd1
+red_receipt=t3-sqlite-red.txt sha256=1ae6c88e1c204ed8e73558e01b3e310cd384ba635013ae5885f4d1767218eda9
+red_receipt=t3-migration-red.txt sha256=0901eb553471e7fd9445f5bd1c374251283bbf241681654b929cdeeead7125fc
+red_receipt=t4-scanner-red.txt sha256=9d2fed4e566a3436934137547f5b9992106dffb72c730b3b566f44299d51fc3a
+green_receipt=t1-bootstrap-green.txt sha256=79476178a9e01e537d6378ce205d032477bda7ddaa974d30b55cb3f41c94a779
+green_receipt=t1-check-green.txt sha256=f351aef7b22812d78b1108d8176ca0f7b6444295383c023c694e22bad9535020
+green_receipt=t2-domain-green.txt sha256=bccfa308c811e82a7a333e5a7fcd77105c058c04f660022ac65a13583a623f7b
+green_receipt=t3-sqlite-green.txt sha256=5aab56b02dbf6fa82828581e5dbfb835334d1b279ee65ffd6d27438aece3a0c4
+green_receipt=t3-migration-green.txt sha256=7c3795009ea4013d2daa7f82e1822db234f443057aa2ba1f5a0c2545bc89012f
+green_receipt=t4-scanner-green.txt sha256=e29bdd4ec8698e87f43fb09164703f40becc36a588a3fcb2a799bb7d9dce08c7
+sqlc_version=v1.29.0
+betterleaks_version=v1.7.4
+network=permanently_disabled
+green_gate=go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil exit=0
+green_gate=go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports exit=0
+green_gate=go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate -f db/sqlc.yaml && go test ./internal/adapters/sqlite -run 'TestSchema|TestTransaction|TestFTS|TestFTSTokenizer|TestUnicodeDiacritic|TestSQLiteFull|TestActivationJournal' -count=1 && go test -race ./internal/adapters/sqlite exit=0
+green_gate=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1 exit=0
+green_gate=TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1 exit=0
+green_gate=make check exit=0
+combined_gate=go test ./... && go test -race ./... && go vet ./... && go generate ./... && go mod tidy -diff && git diff --check exit=0

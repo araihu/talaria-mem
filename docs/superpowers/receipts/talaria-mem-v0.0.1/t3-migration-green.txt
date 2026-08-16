@@ -1,0 +1,9 @@
+task=T3
+phase=GREEN
+negative_fixture=testdata/sqlite/partial-migration-v4.json
+fixture_sha256=0285e9f347ef39973cd4f854aedcff8badcd5e428d2ab0d7f7b5cf354c6cedf1
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.227s

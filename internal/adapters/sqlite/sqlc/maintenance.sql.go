@@ -12,14 +12,15 @@ import (
 
 const insertPurgeOperation = `-- name: InsertPurgeOperation :exec
 INSERT INTO purge_operations(
-    id, operation_kind, memory_id, workspace_id, expected_revision_id, phase,
-    receipt_digest, receipt_consumed, inventory_watermark, resume_cursor,
+    id, operation_identity, operation_kind, memory_id, workspace_id, expected_revision_id, phase,
+    receipt_digest, receipt_consumed, receipt_claim, inventory_watermark, resume_cursor, phase_cursor,
     safe_error, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertPurgeOperationParams struct {
 	ID                 string         `json:"id"`
+	OperationIdentity  string         `json:"operation_identity"`
 	OperationKind      string         `json:"operation_kind"`
 	MemoryID           sql.NullString `json:"memory_id"`
 	WorkspaceID        sql.NullString `json:"workspace_id"`
@@ -27,8 +28,10 @@ type InsertPurgeOperationParams struct {
 	Phase              string         `json:"phase"`
 	ReceiptDigest      []byte         `json:"receipt_digest"`
 	ReceiptConsumed    int64          `json:"receipt_consumed"`
+	ReceiptClaim       string         `json:"receipt_claim"`
 	InventoryWatermark int64          `json:"inventory_watermark"`
 	ResumeCursor       string         `json:"resume_cursor"`
+	PhaseCursor        string         `json:"phase_cursor"`
 	SafeError          string         `json:"safe_error"`
 	CreatedAt          string         `json:"created_at"`
 	UpdatedAt          string         `json:"updated_at"`
@@ -37,6 +40,7 @@ type InsertPurgeOperationParams struct {
 func (q *Queries) InsertPurgeOperation(ctx context.Context, arg InsertPurgeOperationParams) error {
 	_, err := q.db.ExecContext(ctx, insertPurgeOperation,
 		arg.ID,
+		arg.OperationIdentity,
 		arg.OperationKind,
 		arg.MemoryID,
 		arg.WorkspaceID,
@@ -44,8 +48,10 @@ func (q *Queries) InsertPurgeOperation(ctx context.Context, arg InsertPurgeOpera
 		arg.Phase,
 		arg.ReceiptDigest,
 		arg.ReceiptConsumed,
+		arg.ReceiptClaim,
 		arg.InventoryWatermark,
 		arg.ResumeCursor,
+		arg.PhaseCursor,
 		arg.SafeError,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -54,10 +60,15 @@ func (q *Queries) InsertPurgeOperation(ctx context.Context, arg InsertPurgeOpera
 }
 
 const readActivationJournal = `-- name: ReadActivationJournal :one
-SELECT id, version, active_generation, candidate_generation, phase,
+SELECT id, version, activation_epoch, active_generation, candidate_generation, phase,
     revision_watermark, candidate_rule_fingerprint, last_processed_id,
     live_mutation_started, quarantined_count, fts_removed_count,
-    outbox_added_count, projected_count, resume_cursor, safe_error, updated_at
+    outbox_added_count, projected_count, resume_cursor, safe_error,
+    comparative_verified, rescan_verified, mutation_verified,
+    projection_verified, readiness_verified, candidate_discard_reverified,
+    historical_live_mutation_started, historical_quarantined_count,
+    historical_fts_removed_count, historical_outbox_added_count,
+    historical_projected_count, updated_at
 FROM rule_activation_journal WHERE id = 1
 `
 
@@ -67,6 +78,7 @@ func (q *Queries) ReadActivationJournal(ctx context.Context) (RuleActivationJour
 	err := row.Scan(
 		&i.ID,
 		&i.Version,
+		&i.ActivationEpoch,
 		&i.ActiveGeneration,
 		&i.CandidateGeneration,
 		&i.Phase,
@@ -80,6 +92,17 @@ func (q *Queries) ReadActivationJournal(ctx context.Context) (RuleActivationJour
 		&i.ProjectedCount,
 		&i.ResumeCursor,
 		&i.SafeError,
+		&i.ComparativeVerified,
+		&i.RescanVerified,
+		&i.MutationVerified,
+		&i.ProjectionVerified,
+		&i.ReadinessVerified,
+		&i.CandidateDiscardReverified,
+		&i.HistoricalLiveMutationStarted,
+		&i.HistoricalQuarantinedCount,
+		&i.HistoricalFtsRemovedCount,
+		&i.HistoricalOutboxAddedCount,
+		&i.HistoricalProjectedCount,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -88,34 +111,52 @@ func (q *Queries) ReadActivationJournal(ctx context.Context) (RuleActivationJour
 const storeActivationJournal = `-- name: StoreActivationJournal :execrows
 UPDATE rule_activation_journal
 SET version = version + 1,
-    active_generation = ?, candidate_generation = ?, phase = ?,
+    activation_epoch = ?, active_generation = ?, candidate_generation = ?, phase = ?,
     revision_watermark = ?, candidate_rule_fingerprint = ?,
     last_processed_id = ?, live_mutation_started = ?, quarantined_count = ?,
     fts_removed_count = ?, outbox_added_count = ?, projected_count = ?,
-    resume_cursor = ?, safe_error = ?, updated_at = ?
+    resume_cursor = ?, safe_error = ?, comparative_verified = ?,
+    rescan_verified = ?, mutation_verified = ?, projection_verified = ?,
+    readiness_verified = ?, candidate_discard_reverified = ?,
+    historical_live_mutation_started = ?, historical_quarantined_count = ?,
+    historical_fts_removed_count = ?, historical_outbox_added_count = ?,
+    historical_projected_count = ?, updated_at = ?
 WHERE id = 1 AND version = ?
 `
 
 type StoreActivationJournalParams struct {
-	ActiveGeneration         string         `json:"active_generation"`
-	CandidateGeneration      sql.NullString `json:"candidate_generation"`
-	Phase                    string         `json:"phase"`
-	RevisionWatermark        int64          `json:"revision_watermark"`
-	CandidateRuleFingerprint string         `json:"candidate_rule_fingerprint"`
-	LastProcessedID          string         `json:"last_processed_id"`
-	LiveMutationStarted      int64          `json:"live_mutation_started"`
-	QuarantinedCount         int64          `json:"quarantined_count"`
-	FtsRemovedCount          int64          `json:"fts_removed_count"`
-	OutboxAddedCount         int64          `json:"outbox_added_count"`
-	ProjectedCount           int64          `json:"projected_count"`
-	ResumeCursor             string         `json:"resume_cursor"`
-	SafeError                string         `json:"safe_error"`
-	UpdatedAt                string         `json:"updated_at"`
-	Version                  int64          `json:"version"`
+	ActivationEpoch               string         `json:"activation_epoch"`
+	ActiveGeneration              string         `json:"active_generation"`
+	CandidateGeneration           sql.NullString `json:"candidate_generation"`
+	Phase                         string         `json:"phase"`
+	RevisionWatermark             int64          `json:"revision_watermark"`
+	CandidateRuleFingerprint      string         `json:"candidate_rule_fingerprint"`
+	LastProcessedID               string         `json:"last_processed_id"`
+	LiveMutationStarted           int64          `json:"live_mutation_started"`
+	QuarantinedCount              int64          `json:"quarantined_count"`
+	FtsRemovedCount               int64          `json:"fts_removed_count"`
+	OutboxAddedCount              int64          `json:"outbox_added_count"`
+	ProjectedCount                int64          `json:"projected_count"`
+	ResumeCursor                  string         `json:"resume_cursor"`
+	SafeError                     string         `json:"safe_error"`
+	ComparativeVerified           int64          `json:"comparative_verified"`
+	RescanVerified                int64          `json:"rescan_verified"`
+	MutationVerified              int64          `json:"mutation_verified"`
+	ProjectionVerified            int64          `json:"projection_verified"`
+	ReadinessVerified             int64          `json:"readiness_verified"`
+	CandidateDiscardReverified    int64          `json:"candidate_discard_reverified"`
+	HistoricalLiveMutationStarted int64          `json:"historical_live_mutation_started"`
+	HistoricalQuarantinedCount    int64          `json:"historical_quarantined_count"`
+	HistoricalFtsRemovedCount     int64          `json:"historical_fts_removed_count"`
+	HistoricalOutboxAddedCount    int64          `json:"historical_outbox_added_count"`
+	HistoricalProjectedCount      int64          `json:"historical_projected_count"`
+	UpdatedAt                     string         `json:"updated_at"`
+	Version                       int64          `json:"version"`
 }
 
 func (q *Queries) StoreActivationJournal(ctx context.Context, arg StoreActivationJournalParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, storeActivationJournal,
+		arg.ActivationEpoch,
 		arg.ActiveGeneration,
 		arg.CandidateGeneration,
 		arg.Phase,
@@ -129,6 +170,17 @@ func (q *Queries) StoreActivationJournal(ctx context.Context, arg StoreActivatio
 		arg.ProjectedCount,
 		arg.ResumeCursor,
 		arg.SafeError,
+		arg.ComparativeVerified,
+		arg.RescanVerified,
+		arg.MutationVerified,
+		arg.ProjectionVerified,
+		arg.ReadinessVerified,
+		arg.CandidateDiscardReverified,
+		arg.HistoricalLiveMutationStarted,
+		arg.HistoricalQuarantinedCount,
+		arg.HistoricalFtsRemovedCount,
+		arg.HistoricalOutboxAddedCount,
+		arg.HistoricalProjectedCount,
 		arg.UpdatedAt,
 		arg.Version,
 	)

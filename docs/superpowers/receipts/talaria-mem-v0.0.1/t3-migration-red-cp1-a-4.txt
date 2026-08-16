@@ -1,0 +1,19 @@
+task=cp1-a-4
+scope=T3-migration
+phase=RED
+tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925
+tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1
+reconstruction=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-4-red/reconstruct-red.sh
+reconstruction_sha256=5b352d9e9b073ddd4167d4e67d9e4fde37f83d6d83982b67342f78b50a5a7237
+negative_fixture=internal/adapters/sqlite/cp1_a4_migration_red_test.go
+expected_exit=1
+actual_exit=1
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+raw_output_begin
+--- FAIL: TestMigrationRoundTripCP1A4DurableEvidence (0.02s)
+    cp1_a4_migration_red_test.go:25: round-trip schema omitted activation epoch audit: count=0
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.402s
+FAIL
+task=cp1-a-4 scope=T3-migration phase=RED tested_source_commit=069281c7ec57b3b4ba51e3a51f4059dfa98b4925 tested_source_tree=2a7015f474098dde3ea0b393a365f52b3b0085e1 expected_exit=1 actual_exit=1
+raw_output_end

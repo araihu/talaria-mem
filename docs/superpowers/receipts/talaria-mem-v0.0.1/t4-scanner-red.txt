@@ -1,0 +1,18 @@
+task=T4
+phase=RED
+tested_source_commit=85d34efbb2c58d3fa37d36d1d0509f38f2d47688
+tested_source_tree=d1a37b3c70b457e8bdd53330c15ef608a4373234
+base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+negative_fixture=testdata/secrets/rule-upgrade-uncertain.json
+fixture_sha256=7f8a58a0308da6b9cb052f47b58eb6277ae5f15afc2e8982977805bd076589b6
+red_harness=temporary uncommitted internal/scanner/cp1_red_test.go in rejected-source scratch worktree
+command=go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress|TestCP1CandidateRejectsRelabelAndEmptyFixtures' -count=1
+expected_exit=1
+actual_exit=1
+raw_output:
+--- FAIL: TestCP1CandidateRejectsRelabelAndEmptyFixtures (0.00s)
+    cp1_red_test.go:15: empty comparative fixtures accepted
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/scanner	0.449s
+FAIL

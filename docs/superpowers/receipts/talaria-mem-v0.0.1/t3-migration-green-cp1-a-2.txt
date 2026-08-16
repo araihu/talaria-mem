@@ -1,0 +1,11 @@
+task=cp1-a-2
+scope=T3-migration
+phase=GREEN
+negative_fixture=testdata/sqlite/cp1-a-2-migration-protocol.json
+fixture_sha256=735a592162a71b36e3400e323cf0e54f88032ba6bed42b03588a722b631d8ab2
+migration_driver=github.com/golang-migrate/migrate/v4/database/sqlite backed by modernc.org/sqlite
+command=go test ./internal/adapters/sqlite -run 'TestMigrationRoundTrip' -count=1
+expected_exit=0
+actual_exit=0
+raw_output:
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.194s

@@ -1,0 +1,26 @@
+task=cp1-a-13
+phase=FROZEN-CANDIDATE
+candidate_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+candidate_parent_tree=907485420657b689560a2f026df07a3b729cd4eb
+prior_manifest=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-12-receipt-manifest.txt sha256=4899aa81572ae5ab020e19cf1a2bbac112fac0cc7a4f2e2bb60c4f9bd40c81bf
+receipt=t3-migration-green-cp1-a-13.txt sha256=a3a0e982d142090a097a4fedc2b53da012a6bb3daa84c1851c76fb4dc7f6665e expected_exit=0 actual_exit=0
+
+gate=focused-t3-authority-list command="go test ./internal/adapters/sqlite -list '^(TestMigrationCP1A12|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A11|TestMigrationCP1A10|TestMigrationCP1A9|TestMigrationCP1A8|TestMigrationAuthorityCP1A6|TestMigrationAuthorityCP1A7|TestMigrationRoundTrip|TestMigrationRejectsPreJournal).*$'" exit=0 listed_top_level_tests=29
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A12|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A11|TestMigrationCP1A10|TestMigrationCP1A9|TestMigrationCP1A8|TestMigrationAuthorityCP1A6|TestMigrationAuthorityCP1A7|TestMigrationRoundTrip|TestMigrationRejectsPreJournal).*$' -count=1 -v" exit=0 executed_top_level_tests=29 receipt=t3-migration-green-cp1-a-13.txt
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=full-test command="GOCACHE=/tmp/talaria-mem-cp1-a12-final-go-cache-2 go test ./..." exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=full-race command="GOCACHE=/tmp/talaria-mem-cp1-a12-race-cache-2 go test -race ./..." exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=vet command="GOCACHE=/tmp/talaria-mem-cp1-a12-vet-cache go vet ./..." exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=generate command="GOCACHE=/tmp/talaria-mem-cp1-a12-generate-cache go generate ./..." exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=generated-diff command="git diff --exit-code -- internal/adapters/sqlite/sqlc internal/adapters/sqlite/sqlc.manifest" exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=tidy command="GOWORK=off go mod tidy -diff" exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=sqlc-negative command="TALARIA_SQLC_NEGATIVE_TASK=cp1-a-12 make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=make-check command="GOCACHE=/tmp/talaria-mem-cp1-a12-check-cache-final make check" exit=0 inherited_exact_code_parent=592c44cfb400f0cfdd785c9f64ce4e6d05053a5c
+gate=production-failpoint-scan command="rg forbidden symbols in internal/adapters/sqlite/db.go; no matches" exit=0
+gate=future-ownership-scan command="test ! -e internal/adapters/filesystem && test ! -e internal/maintenance" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+correction=old-A12-focused-regex matched prefixes without explicit trailing pattern and receipt claimed coverage without proving every advertised test; A13 uses explicit prefix alternatives plus terminal .*$ and lists/runs 29 top-level tests
+code_scope=proof-only; implementation tree unchanged from A12 candidate parent
+freeze=code_parent_clean_before_evidence=yes; evidence_commit_to_follow; no merge/push/tag/reviewer-dispatch performed by this lane

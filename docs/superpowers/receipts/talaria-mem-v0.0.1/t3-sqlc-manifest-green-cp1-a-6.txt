@@ -1,0 +1,6 @@
+task=cp1-a-6
+phase=GREEN
+command=sh scripts/check-sqlc-generated.sh
+expected_exit=0
+actual_exit=0
+sqlc_version=v1.29.0

@@ -1,0 +1,58 @@
+task=cp1-a-8
+phase=GREEN
+scope=T3-migration-crash-recovery
+command=go test ./internal/adapters/sqlite -run '^(TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions)$' -count=1 -v
+expected_exit=0
+actual_exit=0
+fixtures=after-clean-version-1,after-clean-version-2,after-clean-version-3,before-user-version,after-user-version,before-final-journal,after-final-journal,migration-2-before-commit,migration-2-applied-DDL-before-clean,migration-3-before-commit,migration-3-applied-DDL-before-clean,legacy-v1-to-v2,legacy-v2-to-v3
+controls=test-only migration adapter in *_test.go; production db.go has no migration failpoint type/options/callbacks/environment inspection/os.Exit
+--- raw output ---
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/after-clean-version-1
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/after-clean-version-2
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/after-clean-version-3
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/before-user-version
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/after-user-version
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/before-final-journal
+=== RUN   TestMigrationCrashAfterCleanAndAuthorityWrites/after-final-journal
+--- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites (0.13s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/after-clean-version-1 (0.02s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/after-clean-version-2 (0.02s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/after-clean-version-3 (0.02s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/before-user-version (0.02s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/after-user-version (0.02s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/before-final-journal (0.02s)
+    --- PASS: TestMigrationCrashAfterCleanAndAuthorityWrites/after-final-journal (0.02s)
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeath
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeath/migration-2-before-commit
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeath/migration-2-applied-ddl-before-clean
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeath/migration-3-before-commit
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeath/migration-3-applied-ddl-before-clean
+--- PASS: TestMigrationDirtyRecoveryAfterProcessDeath (0.09s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeath/migration-2-before-commit (0.02s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeath/migration-2-applied-ddl-before-clean (0.02s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeath/migration-3-before-commit (0.02s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeath/migration-3-applied-ddl-before-clean (0.02s)
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v1-to-v2-before-commit
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v1-to-v2-after-ddl-before-clean
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v2-to-v3-before-commit
+=== RUN   TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v2-to-v3-after-ddl-before-clean
+--- PASS: TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal (0.09s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v1-to-v2-before-commit (0.02s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v1-to-v2-after-ddl-before-clean (0.02s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v2-to-v3-before-commit (0.02s)
+    --- PASS: TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal/legacy-v2-to-v3-after-ddl-before-clean (0.02s)
+=== RUN   TestMigrationDirtyRecoveryCrashPositions
+=== RUN   TestMigrationDirtyRecoveryCrashPositions/migration-2-before-commit
+=== RUN   TestMigrationDirtyRecoveryCrashPositions/migration-2-after-ddl-before-clean
+=== RUN   TestMigrationDirtyRecoveryCrashPositions/migration-3-before-commit
+=== RUN   TestMigrationDirtyRecoveryCrashPositions/migration-3-after-ddl-before-clean
+--- PASS: TestMigrationDirtyRecoveryCrashPositions (0.04s)
+    --- PASS: TestMigrationDirtyRecoveryCrashPositions/migration-2-before-commit (0.01s)
+    --- PASS: TestMigrationDirtyRecoveryCrashPositions/migration-2-after-ddl-before-clean (0.01s)
+    --- PASS: TestMigrationDirtyRecoveryCrashPositions/migration-3-before-commit (0.01s)
+    --- PASS: TestMigrationDirtyRecoveryCrashPositions/migration-3-after-ddl-before-clean (0.01s)
+PASS
+ok  	github.com/guilhermecastro/talaria-mem/internal/adapters/sqlite	0.568s
+--- end raw output ---
