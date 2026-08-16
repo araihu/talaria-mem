@@ -1,0 +1,50 @@
+task=cp1-final
+phase=FROZEN-CANDIDATE
+scope=CP1 T1-T4 only; final evidence for v0.0.1 candidate; no T9/T13 implementation paths
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+implementation_snapshot_commit=00503a4b4dc3aafb9fd9916ea8c57edb09bab262
+implementation_snapshot_tree=2001b2f00ed24353978387c9d61493203057c717
+candidate_parent_commit=00699614ef1b2e36c1dccc9672c67a4e775844ac
+candidate_parent_tree=788edf0ee2263486889002700e286653345e4fa2
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+spec=docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md sha256=1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5
+
+history=existing dependency-ordered DAG T1 -> T2 -> {T3,T4}; merge_commit=60d3b3a4384d0fce3b9a8c4a210073dd670bb125
+history_replay=docs/superpowers/receipts/talaria-mem-v0.0.1/cp1-a-15-replay/reconstruct-history.sh sha256=bebf61924bb31d8f2bea5f62e8c69db288908a8fb8f6ffa7f336a4c9fde858ff
+history_replay_result=exit=0; all named RED/GREEN commands consumed fixtures and matched expected exits; normal Go cache enabled
+
+receipt=t1-bootstrap-red-cp1-a-15.txt sha256=bdc0aff655aa4d6a356dd39958c24479f2865151a985239eddd29964171f03bd expected_exit=1 actual_exit=1
+receipt=t1-bootstrap-green-cp1-a-15.txt sha256=f262b0725989108c4eaf8947cbe33596379a6d77be3dad2fa078b1b6b6a0855f expected_exit=0 actual_exit=0
+receipt=t1-check-green-cp1-a-15.txt sha256=603d5eef0594da8351bb1a1c906706d14731e9290c02f43539f422eac45c45c1 expected_exit=0 actual_exit=0
+receipt=t2-domain-red-cp1-a-15.txt sha256=699f00a2b1495d4c93198275e4fffd28cd3655377a2fa218de18f542c812a099 expected_exit=1 actual_exit=1
+receipt=t2-domain-green-cp1-a-15.txt sha256=75a55a6ac2c418dddeebd70065a13e396768991459430071b37e85458a276ed9 expected_exit=0 actual_exit=0
+receipt=t3-sqlite-red-cp1-a-15.txt sha256=c09124bef1f2241ffaef5dce0c36fa61f5e895b6aa0b9c13934ed2fa1aa20272 expected_exit=1 actual_exit=1
+receipt=t3-sqlite-green-cp1-a-15.txt sha256=23e39534d9988bc18a0323cb3136ced247cfe5d510eeed00e781e42bc72840b0 expected_exit=0 actual_exit=0
+receipt=t3-migration-red-cp1-a-15.txt sha256=e5e82d8b10f673b1d49b7690fb26b905ad3961ecc226d12f9e45b8782ae3a714 expected_exit=1 actual_exit=1
+receipt=t3-migration-green-cp1-a-15.txt sha256=f9a360068e473d0cd21d153913cc18fbdef18b28d41b09092cea03083bdde4bd expected_exit=0 actual_exit=0
+receipt=t4-scanner-red-cp1-a-15.txt sha256=93ae9b71ec944f8e9aef58ea9d181b1d4aad9940e76324cd62b553a3b874e536 expected_exit=1 actual_exit=1
+receipt=t4-scanner-green-cp1-a-15.txt sha256=9cdd524025c2cc295573576419fe6e0c71f6ff5a701b450fc9cd939ad7be9e5a expected_exit=0 actual_exit=0
+
+gate=focused-t1 command="go test ./cmd/talaria-mem ./internal/testutil -count=1 && go vet ./cmd/talaria-mem ./internal/testutil" exit=0
+gate=focused-t2 command="go test ./internal/domain ./internal/ports -run 'TestResolutionState|TestLimits|TestKeyDeriver|TestNormalizeV1|TestManagedFileStore|TestActivationJournal|TestFTSConfig|TestSQLiteFull' -count=1 && go vet ./internal/domain ./internal/ports" exit=0
+gate=focused-t3-authority command="go test ./internal/adapters/sqlite -run '^(TestMigrationCP1A12|TestMigrationDirtyRecoveryAfterSetVersionBeforeRun|TestMigrationCrashAfterCleanAndAuthorityWrites|TestMigrationDirtyRecoveryAfterProcessDeath|TestMigrationDirtyRecoveryAfterProcessDeathLegacyJournal|TestMigrationDirtyRecoveryCrashPositions|TestMigrationCP1A11|TestMigrationCP1A10|TestMigrationCP1A8|TestMigrationAuthorityCP1A[67]|TestMigrationRoundTrip|TestMigrationRejectsPreJournal)' -count=1 -v" exit=0
+gate=focused-t3-package command="go test ./internal/adapters/sqlite -count=1" exit=0
+gate=focused-t4 command="TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1" exit=0
+gate=full-test command="GOCACHE=/tmp/talaria-mem-cp1-final-go-cache go test ./..." exit=0
+gate=full-race command="GOCACHE=/tmp/talaria-mem-cp1-final-race-cache go test -race ./..." exit=0
+gate=vet command="GOCACHE=/tmp/talaria-mem-cp1-final-vet-cache go vet ./..." exit=0
+gate=generate command="GOCACHE=/tmp/talaria-mem-cp1-final-generate-cache go generate ./..." exit=0
+gate=generated-diff command="git diff --exit-code -- internal/adapters/sqlite/sqlc internal/adapters/sqlite/sqlc.manifest" exit=0
+gate=tidy command="GOWORK=off go mod tidy -diff" exit=0
+gate=sqlc-positive command="sh scripts/check-sqlc-generated.sh" exit=0
+gate=sqlc-negative command="TALARIA_SQLC_NEGATIVE_TASK=cp1-final make sqlc-negative" outer_exit=0 nested_expected_exit=1 nested_actual_exit=1
+gate=make-check command="GOCACHE=/tmp/talaria-mem-cp1-final-check-cache make check" exit=0
+gate=production-migration-authority-scan command="rg migration failpoint/env/process-control symbols in internal/adapters/sqlite/db.go; no matches" exit=0
+gate=future-ownership-scan command="test ! -e internal/adapters/filesystem && test ! -e internal/maintenance" exit=0
+gate=diff-check command="git diff --check" exit=0
+
+controls=no production migration failpoints, migration environment inspection, or os.Exit/process controls; test-only crash harness retained; scanner network boundary retained
+ownership=CP1 T1-T4; T2 ports/fakes and T3 schema/queries/sqlc retained; internal/adapters/filesystem and internal/maintenance absent for T9/T13
+lifecycle=no reviewer dispatch, merge, push, tag, release, deploy, or cleanup performed by this lane
+freeze=manifest commit follows; final branch/head/tree/status reported externally after commit; candidate requires independent final review
