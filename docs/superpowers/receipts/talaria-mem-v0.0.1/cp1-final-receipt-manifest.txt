@@ -5,8 +5,8 @@ approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
 approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
 implementation_snapshot_commit=00503a4b4dc3aafb9fd9916ea8c57edb09bab262
 implementation_snapshot_tree=2001b2f00ed24353978387c9d61493203057c717
-candidate_parent_commit=19d1243ed40067db49f5c2bd41acf4f6ef544552
-candidate_parent_tree=0703c108401d665d78204a009cdf1aaf28ca6b32
+candidate_parent_commit=a2784be2311d901528e53174240e7771c4f89274
+candidate_parent_tree=cd0c583567899387089ddc997684ca072e16e57d
 plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
 spec=docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md sha256=1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5
 
@@ -26,7 +26,7 @@ receipt=t3-sqlite-red-cp1-a-15.txt sha256=c09124bef1f2241ffaef5dce0c36fa61f5e895
 receipt=t3-sqlite-green-cp1-a-15.txt sha256=23e39534d9988bc18a0323cb3136ced247cfe5d510eeed00e781e42bc72840b0 expected_exit=0 actual_exit=0
 receipt=t3-migration-red-cp1-a-15.txt sha256=e5e82d8b10f673b1d49b7690fb26b905ad3961ecc226d12f9e45b8782ae3a714 expected_exit=1 actual_exit=1
 receipt=t3-migration-green-cp1-a-15.txt sha256=370ea0f67dcab9fc71314b6ad6ee4adbf1de297ebf944a8bd14c414430d1c2f7 expected_exit=0 actual_exit=0
-receipt=t3-authority-focused-cp1-final.txt sha256=3df68b5a283d9f7ed31987f30aae7a6a81b19af915492b0273e16e3b9bc55760 expected_exit=0 actual_exit=0 listed_top_level_tests=29 executed_top_level_tests=29
+receipt=t3-authority-focused-cp1-final.txt sha256=4b579be27a15bdff70a770f29422fa96274ec867a36f4ca5a1d4ac6f5a2218b5 expected_exit=0 actual_exit=0 listed_top_level_tests=29 executed_top_level_tests=29
 receipt=t4-scanner-red-cp1-a-15.txt sha256=93ae9b71ec944f8e9aef58ea9d181b1d4aad9940e76324cd62b553a3b874e536 expected_exit=1 actual_exit=1
 receipt=t4-scanner-green-cp1-a-15.txt sha256=9cdd524025c2cc295573576419fe6e0c71f6ff5a701b450fc9cd939ad7be9e5a expected_exit=0 actual_exit=0
 
