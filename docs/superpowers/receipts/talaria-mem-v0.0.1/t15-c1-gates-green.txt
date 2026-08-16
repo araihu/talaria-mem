@@ -1,0 +1,13 @@
+phase=E
+catalog_path=test/acceptance/gate_catalog.yaml
+gate_catalog_hash=4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+tested_source_commit=0344dc43393e71089c4024907923c1ffc2077e5d
+tested_source_tree=7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+go_test=pass
+go_test_race=pass
+go_vet=pass
+go_generate=pass
+sqlc_manifest=pass
+openapi_vacuum=pass
+cli_smoke=pass
+result=pass

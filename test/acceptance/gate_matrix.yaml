@@ -1,0 +1,344 @@
+version: 1
+matrix: talaria-mem-v0.0.1
+rows:
+  - gate_id: G00
+    owner: "T1,T14,T15"
+    spec_section: "14"
+    command: "go build -o $RUNNER_TEMP/talaria-mem ./cmd/talaria-mem"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G01
+    owner: "T3,T5,T8,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/sqlite ./internal/application ./internal/retrieval"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G02
+    owner: "T8,T11,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/codex ./internal/retrieval"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G03
+    owner: "T11,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/codex -run TestTranscript"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G04
+    owner: "T2,T5,T10,T11,T12,T15"
+    spec_section: "14"
+    command: "go test ./internal/application ./internal/cli ./internal/adapters/http"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G05
+    owner: "T5,T10,T12,T15"
+    spec_section: "14"
+    command: "go test ./internal/application -run TestReview"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G06
+    owner: "T5,T10,T11,T12,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/mcp ./internal/application"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G07
+    owner: "T5,T12,T15"
+    spec_section: "14"
+    command: "go test ./internal/application -run TestPromotion"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G08
+    owner: "T2,T6,T10,T11,T15"
+    spec_section: "14"
+    command: "go test ./internal/workspace ./internal/cli"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G09
+    owner: "T2,T6,T10,T15"
+    spec_section: "14"
+    command: "go test ./internal/workspace -run Test.*Merge"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G10
+    owner: "T2,T3,T5,T6,T7,T13,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/sqlite ./internal/application ./internal/projection"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G11
+    owner: "T2,T3,T5,T13,T15"
+    spec_section: "14"
+    command: "go test ./internal/application ./internal/adapters/sqlite -run Test.*Restore"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G12
+    owner: "T2,T3,T5,T7,T8,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/sqlite ./internal/lifecycle ./internal/runtime"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G13
+    owner: "T2,T7,T13,T15"
+    spec_section: "14"
+    command: "go test ./internal/projection ./internal/maintenance"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G14
+    owner: "T4,T5,T7,T10,T11,T12,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/scanner ./internal/application ./internal/lifecycle"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G15
+    owner: "T4,T5,T7,T9,T10,T11,T12,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/scanner ./internal/security ./internal/adapters/http ./internal/adapters/mcp"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G16
+    owner: "T4,T9,T15"
+    spec_section: "14"
+    command: "go test ./internal/scanner ./internal/runtime -run Test.*Network"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G17
+    owner: "T9,T10,T11,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/security ./internal/adapters/http ./internal/adapters/mcp"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G18
+    owner: "T2,T7,T9,T12,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/filesystem ./internal/lifecycle ./internal/security"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G19
+    owner: "T2,T3,T5,T9,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/security ./internal/maintenance ./internal/lifecycle"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G20
+    owner: "T2,T3,T5,T6,T8,T9,T10,T11,T12,T15"
+    spec_section: "14"
+    command: "go test ./internal/retrieval ./internal/adapters/codex ./internal/application"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G21
+    owner: "T2,T3,T8,T15"
+    spec_section: "14"
+    command: "go test ./internal/retrieval -run Test.*Usage"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G22
+    owner: "T8,T15"
+    spec_section: "14"
+    command: "go test ./internal/retrieval -run Test.*Prun"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G23
+    owner: "T5,T7,T9,T13,T15"
+    spec_section: "14"
+    command: "go test ./internal/maintenance -run TestPurge"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G24
+    owner: "T3,T9,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/maintenance ./internal/cli -run TestBackupReconcile"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G25
+    owner: "T3,T13,T15"
+    spec_section: "14"
+    command: "go test ./internal/adapters/sqlite ./internal/maintenance -run TestMigration"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G26
+    owner: "T9,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/maintenance ./internal/runtime -run Test.*Lock"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G27
+    owner: "T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/lifecycle ./cmd/talaria-mem -run Test.*Setup"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G28
+    owner: "T1,T10,T15"
+    spec_section: "14"
+    command: "vacuum lint api/openapi/talaria.yaml --config api/openapi/vacuum.yaml && vacuum bundle api/openapi/talaria.yaml"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G29
+    owner: "T14,T15"
+    spec_section: "14"
+    command: "go test ./internal/lifecycle -run TestPlatform"
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe
+  - gate_id: G30
+    owner: "T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15"
+    spec_section: "14"
+    command: "go test ./... && go test -race ./... && go vet ./... && go generate ./..."
+    expected_exit: 0
+    negative_fixture: "testdata/acceptance/negative-fixture.json"
+    receipt_path: docs/superpowers/receipts/talaria-mem-v0.0.1/t15-c1-gates-green.txt
+    gate_catalog_hash: 4a2774ef0d9f5b3628202d7505d9eae0031aa733d4f2bc21aea770ab6434b218
+    tested_source_commit: 0344dc43393e71089c4024907923c1ffc2077e5d
+    tested_source_tree: 7c8feb415abb996f5cb18a69ac22671cf72bcf3a
+    receipt_hash: e76f3872a8d92dc78549d309f0067039045a60366ec0300433416b0f73e06ebe

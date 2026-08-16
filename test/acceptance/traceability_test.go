@@ -2,8 +2,11 @@ package acceptance
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -203,6 +206,9 @@ func TestGateMatrix(t *testing.T) {
 	if len(rows) != 31 {
 		t.Fatalf("matrix rows=%d, want 31", len(rows))
 	}
+	catalog := gateSet(catalogRows(t))
+	catalogHash := fileSHA256(filepath.Join(repositoryRoot(), "test", "acceptance", "gate_catalog.yaml"))
+	currentCommit := gitRevision("HEAD")
 	for _, row := range rows {
 		for _, field := range []string{"gate_id", "owner", "spec_section", "command", "expected_exit", "negative_fixture", "receipt_path", "gate_catalog_hash", "tested_source_commit", "tested_source_tree", "receipt_hash"} {
 			if row[field] == "" {
@@ -211,6 +217,17 @@ func TestGateMatrix(t *testing.T) {
 		}
 		if row["candidate_commit"] != "" || row["candidate_tree"] != "" {
 			t.Fatalf("matrix row contains final candidate identity: %v", row)
+		}
+		catalogRow, ok := catalog[row["gate_id"]]
+		if !ok || row["owner"] != catalogRow["owner"] || row["spec_section"] != catalogRow["spec_section"] || row["command"] != catalogRow["command"] || row["expected_exit"] != catalogRow["expected_exit"] || row["negative_fixture"] != catalogRow["negative_fixture"] {
+			t.Fatalf("matrix row diverges from immutable catalog: %v", row)
+		}
+		if row["gate_catalog_hash"] != catalogHash || row["tested_source_commit"] == currentCommit {
+			t.Fatalf("matrix source/catalog identity invalid: %v", row)
+		}
+		receiptPath := filepath.Join(repositoryRoot(), row["receipt_path"])
+		if row["receipt_hash"] != fileSHA256(receiptPath) {
+			t.Fatalf("matrix receipt hash mismatch for %s", row["gate_id"])
 		}
 	}
 }
@@ -245,3 +262,21 @@ func TestAllGates(t *testing.T) {
 }
 
 func errorsIsNotExist(err error) bool { return err != nil && os.IsNotExist(err) }
+
+func fileSHA256(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
+}
+
+func gitRevision(reference string) string {
+	command := exec.Command("git", "rev-parse", reference)
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
