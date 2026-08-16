@@ -1,0 +1,12 @@
+[Unit]
+Description=Talaria-Mem local memory daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart={{TALARIA_BINARY}} daemon
+Restart=on-failure
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
