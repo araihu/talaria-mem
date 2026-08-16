@@ -1,0 +1,6 @@
+phase=C1
+artifact=full-suite-and-lifecycle-smoke
+tested_source_commit=external-control-plane
+tested_source_tree=external-control-plane
+negative_fixture=testdata/acceptance/negative-fixture.json
+result=pass

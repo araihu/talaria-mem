@@ -1,0 +1,31 @@
+requirements:
+  - id: REQ-6.1-MERGE-REVIEW
+    spec_section: "6.1"
+    owner_task: T6
+    named_test: TestREQ_6_1_MergeNonIdenticalReview
+    negative_fixture: testdata/workspaces/non-identical-merge-review-flag.json
+    gate_id: G09
+  - id: REQ-8.2-PROJECTION-RETRY
+    spec_section: "8.2"
+    owner_task: T7
+    named_test: TestREQ_8_2_ProjectionRetryMetadata
+    negative_fixture: testdata/projection/retry-metadata-or-scope-lock.json
+    gate_id: G13
+  - id: REQ-8.9-USAGE-CLEANUP
+    spec_section: "8-9"
+    owner_task: T8
+    named_test: TestREQ_8_9_UsageCleanupStartupDailyDowntime
+    negative_fixture: testdata/retrieval/usage-cleanup-downtime-or-pruning-top20.json
+    gate_id: G21
+  - id: REQ-10-PRUNING-TOP20
+    spec_section: "10"
+    owner_task: T8
+    named_test: TestREQ_10_PruningTop20PreBoost
+    negative_fixture: testdata/retrieval/usage-cleanup-downtime-or-pruning-top20.json
+    gate_id: G22
+  - id: REQ-12-PIN-ELIGIBILITY
+    spec_section: "4.2,12"
+    owner_task: T5
+    named_test: TestREQ_12_PinEligibility
+    negative_fixture: testdata/application/pin-ineligible-lifecycle-or-stale-revision.json
+    gate_id: G20

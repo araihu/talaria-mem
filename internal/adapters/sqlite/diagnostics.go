@@ -2,6 +2,9 @@ package sqlite
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"strings"
 
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
@@ -11,6 +14,9 @@ type FTSReport struct {
 	Tokenizer    string
 	SecureDelete bool
 	Rows         int64
+	ExpectedRows int64
+	ExpectedHash string
+	ActualHash   string
 }
 
 func (database *DB) FTSReport(ctx context.Context) (FTSReport, error) {
@@ -25,7 +31,59 @@ func (database *DB) FTSReport(ctx context.Context) (FTSReport, error) {
 	if err := database.sql.QueryRowContext(ctx, `SELECT count(*) FROM memory_fts`).Scan(&rows); err != nil {
 		return FTSReport{}, domain.MapSQLiteError(err)
 	}
-	return FTSReport{Tokenizer: tokenizerFromDefinition(definition), SecureDelete: true, Rows: rows}, nil
+	var secureDelete int64
+	if err := database.sql.QueryRowContext(ctx, `SELECT v FROM memory_fts_config WHERE k = 'secure-delete'`).Scan(&secureDelete); err != nil {
+		return FTSReport{}, domain.MapSQLiteError(err)
+	}
+	expectedRows, expectedHash, err := database.ftsDigest(ctx, `
+SELECT memories.id, revisions.title, revisions.content, revisions.tags_json
+FROM memories
+JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
+WHERE memories.trust = 'verified'
+  AND memories.lifecycle = 'active'
+  AND revisions.trust = 'verified'
+  AND revisions.lifecycle = 'active'
+ORDER BY memories.id`)
+	if err != nil {
+		return FTSReport{}, err
+	}
+	_, actualHash, err := database.ftsDigest(ctx, `
+SELECT memory_id, title, content, tags
+FROM memory_fts
+ORDER BY memory_id`)
+	if err != nil {
+		return FTSReport{}, err
+	}
+	return FTSReport{Tokenizer: tokenizerFromDefinition(definition), SecureDelete: secureDelete == 1, Rows: rows, ExpectedRows: expectedRows, ExpectedHash: expectedHash, ActualHash: actualHash}, nil
+}
+
+// FTSIntegrity returns a deterministic metadata-only comparison of canonical
+// eligible rows and the materialized FTS table. Content never leaves this
+// adapter; only row counts and SHA-256 digests cross the diagnostic boundary.
+func (database *DB) FTSIntegrity(ctx context.Context) (FTSReport, error) {
+	return database.FTSReport(ctx)
+}
+
+func (database *DB) ftsDigest(ctx context.Context, query string) (int64, string, error) {
+	rows, err := database.sql.QueryContext(ctx, query)
+	if err != nil {
+		return 0, "", domain.MapSQLiteError(err)
+	}
+	defer rows.Close()
+	hash := sha256.New()
+	var count int64
+	for rows.Next() {
+		var memoryID, title, content, tags string
+		if err := rows.Scan(&memoryID, &title, &content, &tags); err != nil {
+			return 0, "", domain.MapSQLiteError(err)
+		}
+		count++
+		_, _ = fmt.Fprintf(hash, "%s\x00%s\x00%s\x00%s\n", memoryID, title, content, tags)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, "", domain.MapSQLiteError(err)
+	}
+	return count, hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func (database *DB) RepairFTS(ctx context.Context) error {

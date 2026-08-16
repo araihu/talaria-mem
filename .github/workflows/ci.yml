@@ -36,7 +36,8 @@ jobs:
           go build -o "$RUNNER_TEMP/talaria-mem/talaria-mem" ./cmd/talaria-mem
       - name: Vacuum lint and bundle
         run: |
+          go install github.com/daveshanley/vacuum@v0.30.0
           if test -f api/openapi/talaria.yaml; then
-            vacuum lint api/openapi/talaria.yaml api/openapi/vacuum.yaml
+            vacuum lint api/openapi/talaria.yaml --config api/openapi/vacuum.yaml
             vacuum bundle api/openapi/talaria.yaml -o "$RUNNER_TEMP/talaria.openapi.yaml"
           fi

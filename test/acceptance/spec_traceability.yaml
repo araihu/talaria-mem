@@ -1,0 +1,49 @@
+sections:
+  - section: "1"
+    classification: implemented
+    evidence: README.md,docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md
+  - section: "2"
+    classification: implemented-and-deferred
+    evidence: ROADMAP.md,docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md
+  - section: "3"
+    classification: implemented
+    evidence: internal/security,internal/scanner,internal/adapters/http
+  - section: "4"
+    classification: implemented
+    evidence: internal/runtime,internal/lifecycle,internal/adapters/codex
+  - section: "5"
+    classification: implemented
+    evidence: internal/security,internal/scanner,internal/adapters/filesystem
+  - section: "6"
+    classification: implemented
+    evidence: internal/workspace
+  - section: "7"
+    classification: implemented
+    evidence: internal/domain,internal/application
+  - section: "8"
+    classification: implemented
+    evidence: internal/adapters/sqlite,internal/projection
+  - section: "9"
+    classification: implemented
+    evidence: internal/retrieval
+  - section: "10"
+    classification: implemented
+    evidence: internal/retrieval
+  - section: "11"
+    classification: implemented
+    evidence: internal/adapters/sqlite,internal/maintenance,internal/lifecycle
+  - section: "12"
+    classification: implemented
+    evidence: internal/cli,internal/adapters/mcp
+  - section: "13"
+    classification: implemented
+    evidence: docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md
+  - section: "14"
+    classification: implemented
+    evidence: test/acceptance/gate_catalog.yaml
+  - section: "15"
+    classification: rejected-or-deferred
+    evidence: ROADMAP.md
+  - section: "16"
+    classification: evidence
+    evidence: docs/superpowers/receipts/talaria-mem-v0.0.1

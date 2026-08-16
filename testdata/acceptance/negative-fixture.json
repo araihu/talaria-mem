@@ -1,0 +1,4 @@
+{
+  "fixture": "negative",
+  "purpose": "catalog integrity tests must reject missing or malformed gate metadata"
+}

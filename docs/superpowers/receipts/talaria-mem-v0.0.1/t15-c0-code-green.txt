@@ -1,0 +1,6 @@
+phase=C0
+artifact=acceptance-catalog-and-functional-gates
+tested_source_commit=identity-free-before-evidence
+tested_source_tree=identity-free-before-evidence
+negative_fixture=testdata/acceptance/negative-fixture.json
+result=pass

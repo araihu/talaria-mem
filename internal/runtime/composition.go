@@ -192,7 +192,22 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	}
 	status := lifecycle.NewStatusService(readiness, databasePath)
 	status.Freelist = database.FreelistPages
-	doctor := lifecycle.NewDoctor(lifecycle.DoctorConfig{Environment: environment, Readiness: readiness, RootKeyPath: rootKeyPath, TokenPath: tokenPath, DatabasePath: databasePath, WALPath: databasePath + "-wal", SHMPath: databasePath + "-shm"})
+	ftsReceipts, err := lifecycle.NewFileFTSRepairReceiptStore(receiptStore.Dir, backupKey)
+	if err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	doctor := lifecycle.NewDoctor(lifecycle.DoctorConfig{
+		Environment:  environment,
+		Readiness:    readiness,
+		FTS:          sqliteFTSRepairer{database: database},
+		Receipts:     ftsReceipts,
+		RootKeyPath:  rootKeyPath,
+		TokenPath:    tokenPath,
+		DatabasePath: databasePath,
+		WALPath:      databasePath + "-wal",
+		SHMPath:      databasePath + "-shm",
+	})
 	setupRequest := lifecycle.SetupRequest{ConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"), HookPath: filepath.Join(environment.ConfigDir, "session-start.sh"), TokenPath: tokenPath, BinaryPath: configuration.BinaryPath, Endpoint: address}
 	if setupRequest.BinaryPath == "" {
 		setupRequest.BinaryPath, _ = os.Executable()
@@ -216,7 +231,7 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 // avoids opening SQLite, creating a root key, or creating a bearer token for a
 // dry-run. Apply creates installation credentials before writing the hook.
 func RunSetup(ctx context.Context, args []string, configuration Config) error {
-	environment, err := resolveEnvironment(configuration.Environment)
+	environment, err := resolveEnvironmentForSetup(configuration.Environment)
 	if err != nil {
 		return err
 	}
@@ -293,6 +308,20 @@ func resolveEnvironment(environment lifecycle.Environment) (lifecycle.Environmen
 		return lifecycle.Environment{}, err
 	}
 	return environment, nil
+}
+
+func resolveEnvironmentForSetup(environment lifecycle.Environment) (lifecycle.Environment, error) {
+	if environment.StateDir != "" || environment.ConfigDir != "" || environment.BackupDir != "" {
+		if err := environment.ValidatePaths(); err != nil {
+			return lifecycle.Environment{}, err
+		}
+		return environment, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return lifecycle.Environment{}, err
+	}
+	return lifecycle.DefaultEnvironment(home)
 }
 
 func prepareDatabase(path string, policy ports.ManagedPathPolicy) error {

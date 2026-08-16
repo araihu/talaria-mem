@@ -63,7 +63,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if !knownCommand(args[0]) {
 		return &UsageError{Command: args[0]}
 	}
-	environment, err := lifecycle.ParseEnvironmentOSOrDefault()
+	var environment lifecycle.Environment
+	var err error
+	if args[0] == "setup" {
+		environment, err = lifecycle.ParseEnvironmentOSOrDefaultForSetup()
+	} else {
+		environment, err = lifecycle.ParseEnvironmentOSOrDefault()
+	}
 	if err != nil {
 		return err
 	}

@@ -62,6 +62,40 @@ func ParseEnvironmentOSOrDefault() (Environment, error) {
 	return parseEnvironmentOS(true)
 }
 
+// ParseEnvironmentOSOrDefaultForSetup parses the same typed path boundary as
+// normal composition but permits the final managed directories to be absent.
+// EnsureDirectories performs the existence/owner/mode/no-follow checks before
+// setup writes anything.
+func ParseEnvironmentOSOrDefaultForSetup() (Environment, error) {
+	values := make(map[string]string)
+	provided := false
+	for _, item := range os.Environ() {
+		key, value, found := strings.Cut(item, "=")
+		if found {
+			values[key] = value
+			switch key {
+			case "TALARIA_STATE_DIR", "TALARIA_CONFIG_DIR", "TALARIA_BACKUP_DIR":
+				provided = true
+			}
+		}
+	}
+	if !provided {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Environment{}, err
+		}
+		return DefaultEnvironment(home)
+	}
+	configuration, err := env.ParseAsWithOptions[Environment](env.Options{Environment: values})
+	if err != nil {
+		return Environment{}, fmt.Errorf("parse lifecycle environment: %w", err)
+	}
+	if err := configuration.ValidatePaths(); err != nil {
+		return Environment{}, err
+	}
+	return configuration, nil
+}
+
 func parseEnvironmentOS(defaultWhenUnset bool) (Environment, error) {
 	values := make(map[string]string)
 	provided := false
@@ -104,6 +138,9 @@ func DefaultEnvironment(home string) (Environment, error) {
 // existing, owner-owned, mode-0700, non-symlink directories whose parents are
 // also existing owner-owned non-symlink directories.
 func (configuration Environment) Validate() error {
+	if err := configuration.ValidatePaths(); err != nil {
+		return err
+	}
 	for name, path := range map[string]string{
 		"TALARIA_STATE_DIR":  configuration.StateDir,
 		"TALARIA_CONFIG_DIR": configuration.ConfigDir,
@@ -111,6 +148,22 @@ func (configuration Environment) Validate() error {
 	} {
 		if err := validateManagedDirectory(path); err != nil {
 			return fmt.Errorf("%s is unsafe: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// ValidatePaths enforces shape without requiring final directories to exist.
+// It is the only weaker validation allowed at first-install parse time; the
+// caller must immediately follow it with EnsureDirectories.
+func (configuration Environment) ValidatePaths() error {
+	for name, path := range map[string]string{
+		"TALARIA_STATE_DIR":  configuration.StateDir,
+		"TALARIA_CONFIG_DIR": configuration.ConfigDir,
+		"TALARIA_BACKUP_DIR": configuration.BackupDir,
+	} {
+		if path == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+			return fmt.Errorf("%s is unsafe: path must be absolute and canonical", name)
 		}
 	}
 	return nil
