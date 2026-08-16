@@ -23,6 +23,7 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/lifecycle"
 	"github.com/guilhermecastro/talaria-mem/internal/maintenance"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
+	"github.com/guilhermecastro/talaria-mem/internal/projection"
 	"github.com/guilhermecastro/talaria-mem/internal/retrieval"
 	"github.com/guilhermecastro/talaria-mem/internal/scanner"
 	"github.com/guilhermecastro/talaria-mem/internal/security"
@@ -49,6 +50,7 @@ type Composition struct {
 	DB          *sqlite.DB
 	Memory      *application.MemoryService
 	Searcher    *retrieval.Searcher
+	Projector   *projection.Worker
 	Readiness   *lifecycle.Readiness
 	Setup       *lifecycle.SetupService
 	Doctor      *lifecycle.Doctor
@@ -98,6 +100,10 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	databasePath := lifecycle.DatabasePath(environment.StateDir)
 	policy := filesystem.NewPathPolicy()
 	lockPath := filepath.Join(environment.StateDir, ".maintenance.lock")
+	projectionDir := filepath.Join(environment.StateDir, "projections")
+	if err := filesystem.EnsureManagedDirectory(projectionDir); err != nil {
+		return nil, err
+	}
 	var database *sqlite.DB
 	if err := maintenance.WithLock(ctx, lockPath, func(ctx context.Context) error {
 		var openErr error
@@ -111,6 +117,8 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	usage := retrieval.NewUsageLedger(clock, deriver)
 	index := sqlite.NewIndex(database)
 	searcher := retrieval.NewSearcher(index, usage, memory.Guard, clock)
+	projectionStore := sqlite.NewProjectionStore(database, projectionDir)
+	projector := projection.NewWorker(projectionStore, projectionStore, filesystem.NewManagedFileStore(policy), memory.Guard, clock)
 
 	activation, err := maintenance.NewFileActivationJournal(filepath.Join(environment.StateDir, "activation.json"), maintenance.DefaultActivationRecord())
 	if err != nil {
@@ -137,7 +145,7 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 		Storage:    func(context.Context) error { return nil },
 		Scanner:    func(context.Context) error { return nil },
 		Migration:  func(context.Context) error { return nil },
-		Projection: func(context.Context) error { return nil },
+		Projection: projectionStore.ProjectionReady,
 		Inventory: func(ctx context.Context) error {
 			inventory, err := backup.Inventory(ctx)
 			if err != nil {
@@ -223,8 +231,8 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	_ = commands.RegisterScanner(registry, &commands.ScannerCommands{})
 	memoryCore := cli.NewMemoryCore(cli.ServiceClient{Memory: memory, Retrieval: searcher})
 	workspaceCommands := cli.NewWorkspaceCommands(cli.StoreClient{Store: store, Resolver: workspace.NewResolver(store, func() time.Time { return clock.Now() }), Binder: workspace.NewBinder(store, func() time.Time { return clock.Now() }), Merge: workspace.NewMergeService(store, func() time.Time { return clock.Now() }), ListFn: store.ListWorkspaces, Clock: func() time.Time { return clock.Now() }})
-	root := cli.NewRoot(cli.RootConfig{Registry: registry, Memory: memoryCore, Workspace: workspaceCommands, Stdout: configuration.Stdout, Stderr: configuration.Stderr})
-	return &Composition{Environment: environment, Address: address, Root: root, Daemon: daemon, HTTP: httpServer, MCP: mcpServer, DB: database, Memory: memory, Searcher: searcher, Readiness: readiness, Setup: setup, Doctor: doctor, Status: status, Token: lifecycle.NewTokenService(tokenPath)}, nil
+	root := cli.NewRoot(cli.RootConfig{Registry: registry, Memory: memoryCore, Workspace: workspaceCommands, Projection: cli.NewProjectionCommands(projector), Stdout: configuration.Stdout, Stderr: configuration.Stderr})
+	return &Composition{Environment: environment, Address: address, Root: root, Daemon: daemon, HTTP: httpServer, MCP: mcpServer, DB: database, Memory: memory, Searcher: searcher, Projector: projector, Readiness: readiness, Setup: setup, Doctor: doctor, Status: status, Token: lifecycle.NewTokenService(tokenPath)}, nil
 }
 
 // RunSetup composes only the first-install command graph. It deliberately

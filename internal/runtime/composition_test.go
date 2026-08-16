@@ -25,8 +25,8 @@ func TestCompositionBuildsOneExplicitRuntimeGraph(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = composition.Close() })
-	if composition.Root == nil || composition.Daemon == nil || composition.HTTP == nil || composition.MCP == nil {
-		t.Fatalf("incomplete graph: root=%v daemon=%v http=%v mcp=%v", composition.Root != nil, composition.Daemon != nil, composition.HTTP != nil, composition.MCP != nil)
+	if composition.Root == nil || composition.Daemon == nil || composition.HTTP == nil || composition.MCP == nil || composition.Projector == nil {
+		t.Fatalf("incomplete graph: root=%v daemon=%v http=%v mcp=%v projector=%v", composition.Root != nil, composition.Daemon != nil, composition.HTTP != nil, composition.MCP != nil, composition.Projector != nil)
 	}
 	for _, name := range []string{"daemon", "doctor", "setup", "status", "token"} {
 		if _, ok := composition.Root.Registry().Lookup(name); !ok {

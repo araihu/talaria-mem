@@ -9,7 +9,9 @@ import (
 )
 
 type Querier interface {
+	AcknowledgeProjection(ctx context.Context, arg AcknowledgeProjectionParams) error
 	AppendOutbox(ctx context.Context, arg AppendOutboxParams) error
+	CountProjectionBlockers(ctx context.Context) (int64, error)
 	CreateMemory(ctx context.Context, arg CreateMemoryParams) error
 	CreateMemoryRevision(ctx context.Context, arg CreateMemoryRevisionParams) error
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) error
@@ -18,16 +20,22 @@ type Querier interface {
 	DeleteUsageBefore(ctx context.Context, day string) (int64, error)
 	InsertEligibleFTSRow(ctx context.Context, id string) error
 	InsertPurgeOperation(ctx context.Context, arg InsertPurgeOperationParams) error
+	ListProjectionMemoryIDs(ctx context.Context, arg ListProjectionMemoryIDsParams) ([]string, error)
 	ListWorkspaces(ctx context.Context) ([]Workspace, error)
 	MoveCurrentRevision(ctx context.Context, arg MoveCurrentRevisionParams) (int64, error)
 	MoveInitialCurrentRevision(ctx context.Context, arg MoveInitialCurrentRevisionParams) (int64, error)
+	PendingProjection(ctx context.Context, arg PendingProjectionParams) ([]PendingProjectionRow, error)
 	ReadActivationJournal(ctx context.Context) (RuleActivationJournal, error)
 	ReadCurrent(ctx context.Context, id string) (ReadCurrentRow, error)
+	ReadProjectionState(ctx context.Context, scopeID string) (ProjectionState, error)
 	ReadWorkspace(ctx context.Context, id string) (Workspace, error)
 	ReadWorkspaceBinding(ctx context.Context, bindingKey string) (WorkspaceBinding, error)
 	ReadWorkspaceByIDOrName(ctx context.Context, arg ReadWorkspaceByIDOrNameParams) (Workspace, error)
 	RebuildEligibleFTSRows(ctx context.Context) error
+	RecordProjectionFailure(ctx context.Context, arg RecordProjectionFailureParams) error
+	ResetProjectionState(ctx context.Context, arg ResetProjectionStateParams) error
 	StoreActivationJournal(ctx context.Context, arg StoreActivationJournalParams) (int64, error)
+	UpsertProjectionState(ctx context.Context, arg UpsertProjectionStateParams) error
 	UpsertUsageDaily(ctx context.Context, arg UpsertUsageDailyParams) error
 	UpsertUsageLifetime(ctx context.Context, arg UpsertUsageLifetimeParams) error
 	UpsertWorkspaceBinding(ctx context.Context, arg UpsertWorkspaceBindingParams) error
