@@ -18,6 +18,12 @@ type WorkspaceClient interface {
 	MergeApply(context.Context, workspacepkg.MergePlan, workspacepkg.MergeReceipt) error
 }
 
+// WorkspaceCreator is optional so existing lightweight clients remain useful
+// for read-only workspace commands while the durable runtime exposes create.
+type WorkspaceCreator interface {
+	Create(context.Context, string, string) (domain.Workspace, error)
+}
+
 type WorkspaceCommands struct{ Client WorkspaceClient }
 
 func NewWorkspaceCommands(client WorkspaceClient) *WorkspaceCommands {
@@ -29,13 +35,31 @@ func (commands *WorkspaceCommands) Run(ctx context.Context, args []string, outpu
 		return errCommandUnavailable
 	}
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		return output.Result(map[string]any{"version": "talaria.workspace.v1", "commands": []string{"list", "show", "bind", "merge"}}, "workspace commands: list show bind merge")
+		return output.Result(map[string]any{"version": "talaria.workspace.v1", "commands": []string{"create", "list", "show", "bind", "merge"}}, "workspace commands: create list show bind merge")
 	}
 	flags, positional, err := parseFlags(args[1:])
 	if err != nil {
 		return err
 	}
 	switch args[0] {
+	case "create":
+		creator, ok := commands.Client.(WorkspaceCreator)
+		if !ok {
+			return errCommandUnavailable
+		}
+		name := flags["name"]
+		if name == "" && len(positional) > 0 {
+			name = positional[0]
+		}
+		if name == "" {
+			return &UsageError{Message: "workspace create requires --name or a name"}
+		}
+		id := flags["id"]
+		item, err := creator.Create(ctx, name, id)
+		if err != nil {
+			return err
+		}
+		return output.Result(item, "%s (%s)", item.Name, item.ID)
 	case "list":
 		items, err := commands.Client.List(ctx)
 		if err != nil {
@@ -105,6 +129,39 @@ type StoreClient struct {
 	Binder   *workspacepkg.Binder
 	Merge    *workspacepkg.MergeService
 	ListFn   func(context.Context) ([]domain.Workspace, error)
+	Clock    func() time.Time
+}
+
+func (client StoreClient) Create(ctx context.Context, name, id string) (domain.Workspace, error) {
+	if client.Store == nil {
+		return domain.Workspace{}, errCommandUnavailable
+	}
+	if name == "" {
+		return domain.Workspace{}, &UsageError{Message: "workspace name is required"}
+	}
+	if id == "" {
+		id = name
+	}
+	if _, found, err := client.Store.ReadWorkspace(ctx, id); err != nil {
+		return domain.Workspace{}, err
+	} else if found {
+		return domain.Workspace{}, domain.NewError(domain.CodeRevisionConflict, "workspace already exists", false)
+	}
+	if _, found, err := client.Store.ReadWorkspace(ctx, name); err != nil {
+		return domain.Workspace{}, err
+	} else if found {
+		return domain.Workspace{}, domain.NewError(domain.CodeRevisionConflict, "workspace already exists", false)
+	}
+	clock := client.Clock
+	if clock == nil {
+		clock = func() time.Time { return time.Now().UTC() }
+	}
+	now := clock().UTC()
+	item := domain.Workspace{ID: id, Name: name, CreatedAt: now, UpdatedAt: now}
+	if err := client.Store.CreateWorkspace(ctx, item); err != nil {
+		return domain.Workspace{}, err
+	}
+	return item, nil
 }
 
 func (client StoreClient) List(ctx context.Context) ([]domain.Workspace, error) {

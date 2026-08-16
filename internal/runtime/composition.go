@@ -160,7 +160,7 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 		_ = database.Close()
 		return nil, err
 	}
-	store := workspace.NewMemoryStore()
+	store := sqlite.NewWorkspaceStore(database)
 	resolver := codex.NewBoundWorkspaceResolver(store)
 	session := codex.NewService(codex.Config{
 		Resolver: resolver,
@@ -222,7 +222,7 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	_ = commands.RegisterToken(registry, commands.NewTokenCommands(lifecycle.NewTokenService(tokenPath)))
 	_ = commands.RegisterScanner(registry, &commands.ScannerCommands{})
 	memoryCore := cli.NewMemoryCore(cli.ServiceClient{Memory: memory, Retrieval: searcher})
-	workspaceCommands := cli.NewWorkspaceCommands(cli.StoreClient{Store: store, Resolver: workspace.NewResolver(store, func() time.Time { return clock.Now() }), Binder: workspace.NewBinder(store, func() time.Time { return clock.Now() }), Merge: workspace.NewMergeService(store, func() time.Time { return clock.Now() })})
+	workspaceCommands := cli.NewWorkspaceCommands(cli.StoreClient{Store: store, Resolver: workspace.NewResolver(store, func() time.Time { return clock.Now() }), Binder: workspace.NewBinder(store, func() time.Time { return clock.Now() }), Merge: workspace.NewMergeService(store, func() time.Time { return clock.Now() }), ListFn: store.ListWorkspaces, Clock: func() time.Time { return clock.Now() }})
 	root := cli.NewRoot(cli.RootConfig{Registry: registry, Memory: memoryCore, Workspace: workspaceCommands, Stdout: configuration.Stdout, Stderr: configuration.Stderr})
 	return &Composition{Environment: environment, Address: address, Root: root, Daemon: daemon, HTTP: httpServer, MCP: mcpServer, DB: database, Memory: memory, Searcher: searcher, Readiness: readiness, Setup: setup, Doctor: doctor, Status: status, Token: lifecycle.NewTokenService(tokenPath)}, nil
 }

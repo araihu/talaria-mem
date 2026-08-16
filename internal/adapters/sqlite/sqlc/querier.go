@@ -18,11 +18,14 @@ type Querier interface {
 	DeleteUsageBefore(ctx context.Context, day string) (int64, error)
 	InsertEligibleFTSRow(ctx context.Context, id string) error
 	InsertPurgeOperation(ctx context.Context, arg InsertPurgeOperationParams) error
+	ListWorkspaces(ctx context.Context) ([]Workspace, error)
 	MoveCurrentRevision(ctx context.Context, arg MoveCurrentRevisionParams) (int64, error)
 	MoveInitialCurrentRevision(ctx context.Context, arg MoveInitialCurrentRevisionParams) (int64, error)
 	ReadActivationJournal(ctx context.Context) (RuleActivationJournal, error)
 	ReadCurrent(ctx context.Context, id string) (ReadCurrentRow, error)
 	ReadWorkspace(ctx context.Context, id string) (Workspace, error)
+	ReadWorkspaceBinding(ctx context.Context, bindingKey string) (WorkspaceBinding, error)
+	ReadWorkspaceByIDOrName(ctx context.Context, arg ReadWorkspaceByIDOrNameParams) (Workspace, error)
 	RebuildEligibleFTSRows(ctx context.Context) error
 	StoreActivationJournal(ctx context.Context, arg StoreActivationJournalParams) (int64, error)
 	UpsertUsageDaily(ctx context.Context, arg UpsertUsageDailyParams) error

@@ -41,3 +41,20 @@ func TestCLIWorkspaceCommands(t *testing.T) {
 		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }
+
+type creatingWorkspaceClient struct{ fakeWorkspaceClient }
+
+func (creatingWorkspaceClient) Create(context.Context, string, string) (domain.Workspace, error) {
+	return domain.Workspace{ID: "workspace-id", Name: "workspace-name"}, nil
+}
+
+func TestCLIWorkspaceCreate(t *testing.T) {
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	root := NewRoot(RootConfig{Workspace: NewWorkspaceCommands(creatingWorkspaceClient{}), Stdout: stdout, Stderr: stderr})
+	if code := root.Execute(context.Background(), []string{"--json", "workspace", "create", "--name", "workspace-name"}); code != ExitSuccess {
+		t.Fatalf("workspace create exit=%d stderr=%q", code, stderr.String())
+	}
+	if stdout.Len() == 0 || stderr.Len() != 0 {
+		t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}

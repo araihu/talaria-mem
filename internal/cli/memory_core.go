@@ -397,7 +397,7 @@ func parseFlags(args []string) (map[string]string, []string, error) {
 		if name == "" {
 			return nil, nil, &UsageError{Message: "invalid empty flag"}
 		}
-		if name == "verified" || name == "global" || name == "pinned" {
+		if name == "verified" || name == "global" || name == "pinned" || name == "apply" || name == "dry-run" {
 			flags[name] = "true"
 			continue
 		}

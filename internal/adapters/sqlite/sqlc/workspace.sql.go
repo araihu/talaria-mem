@@ -33,6 +33,41 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 	return err
 }
 
+const listWorkspaces = `-- name: ListWorkspaces :many
+SELECT id, name, revision_watermark, created_at, updated_at
+FROM workspaces
+ORDER BY name, id
+`
+
+func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Workspace{}
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.RevisionWatermark,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const readWorkspace = `-- name: ReadWorkspace :one
 SELECT id, name, revision_watermark, created_at, updated_at
 FROM workspaces WHERE id = ?
@@ -51,6 +86,51 @@ func (q *Queries) ReadWorkspace(ctx context.Context, id string) (Workspace, erro
 	return i, err
 }
 
+const readWorkspaceBinding = `-- name: ReadWorkspaceBinding :one
+SELECT binding_key, workspace_id, binding_kind, first_inference_warned, created_at, updated_at
+FROM workspace_bindings WHERE binding_key = ?
+`
+
+func (q *Queries) ReadWorkspaceBinding(ctx context.Context, bindingKey string) (WorkspaceBinding, error) {
+	row := q.db.QueryRowContext(ctx, readWorkspaceBinding, bindingKey)
+	var i WorkspaceBinding
+	err := row.Scan(
+		&i.BindingKey,
+		&i.WorkspaceID,
+		&i.BindingKind,
+		&i.FirstInferenceWarned,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const readWorkspaceByIDOrName = `-- name: ReadWorkspaceByIDOrName :one
+SELECT id, name, revision_watermark, created_at, updated_at
+FROM workspaces
+WHERE id = ? OR name = ?
+ORDER BY id
+LIMIT 1
+`
+
+type ReadWorkspaceByIDOrNameParams struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func (q *Queries) ReadWorkspaceByIDOrName(ctx context.Context, arg ReadWorkspaceByIDOrNameParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, readWorkspaceByIDOrName, arg.ID, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.RevisionWatermark,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertWorkspaceBinding = `-- name: UpsertWorkspaceBinding :exec
 INSERT INTO workspace_bindings(
     binding_key, workspace_id, binding_kind, first_inference_warned, created_at, updated_at
@@ -58,7 +138,11 @@ INSERT INTO workspace_bindings(
 ON CONFLICT(binding_key) DO UPDATE SET
     workspace_id = excluded.workspace_id,
     binding_kind = excluded.binding_kind,
-    first_inference_warned = excluded.first_inference_warned,
+    first_inference_warned = CASE
+        WHEN workspace_bindings.first_inference_warned = 1 OR excluded.first_inference_warned = 1 THEN 1
+        ELSE 0
+    END,
+    created_at = workspace_bindings.created_at,
     updated_at = excluded.updated_at
 `
 
