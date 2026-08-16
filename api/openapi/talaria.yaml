@@ -1,0 +1,250 @@
+openapi: 3.1.0
+info:
+  title: Talaria-Mem local control API
+  version: 0.0.1
+  description: Authenticated, loopback-only control surface for the local memory daemon.
+servers:
+  - url: http://127.0.0.1:7437
+    description: Literal loopback only
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /readyz:
+    get:
+      operationId: readyz
+      responses:
+        '200':
+          description: Storage, scanner, and projection are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Process is alive but not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+  /control/v1/session-start:
+    post:
+      operationId: sessionStart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionStartRequest'
+      responses:
+        '200':
+          description: Bounded verified context selection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStartResponse'
+        '400':
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Authentication failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '413':
+          description: Request body exceeds the default one MiB limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: Service is unavailable or scanner state is incomplete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /control/v1/memory/search:
+    post:
+      operationId: memorySearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemorySearchRequest'
+      responses:
+        '200':
+          description: Verified, scanner-gated search results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemorySearchResponse'
+        '400':
+          description: Validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /control/v1/memory/{memory_id}:
+    get:
+      operationId: memoryGet
+      parameters:
+        - $ref: '#/components/parameters/MemoryID'
+        - $ref: '#/components/parameters/WorkspaceID'
+      responses:
+        '200':
+          description: One verified, scanner-gated memory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryItem'
+        '404':
+          description: Memory not found in the requested scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /control/v1/memory/{memory_id}/explain:
+    get:
+      operationId: memoryExplain
+      parameters:
+        - $ref: '#/components/parameters/MemoryID'
+      responses:
+        '200':
+          description: Safe ranking and lifecycle metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Explanation'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    MemoryID:
+      name: memory_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    WorkspaceID:
+      name: workspace_id
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+  schemas:
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [version, code, message, receipt_id, retryable]
+      properties:
+        version: { type: string, const: 'talaria.error.v1' }
+        code: { type: string, minLength: 1 }
+        message: { type: string, minLength: 1 }
+        receipt_id: { type: string, format: uuid }
+        retryable: { type: boolean }
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, version]
+      properties:
+        status: { type: string, const: ok }
+        version: { type: string, const: 'talaria.health.v1' }
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      required: [ready, version]
+      properties:
+        ready: { type: boolean }
+        version: { type: string, const: 'talaria.ready.v1' }
+        reason: { type: string }
+    SessionStartRequest:
+      type: object
+      additionalProperties: false
+      required: [session_id, workspace_id]
+      properties:
+        session_id: { type: string, minLength: 1, maxLength: 256 }
+        workspace_id: { type: string, minLength: 1, maxLength: 256 }
+        query: { type: string, maxLength: 1024 }
+    SessionStartResponse:
+      type: object
+      additionalProperties: false
+      required: [version, workspace_id, items, included, omitted]
+      properties:
+        version: { type: string, const: 'talaria.session-start.v1' }
+        workspace_id: { type: string }
+        items:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/MemoryItem' }
+        included: { type: integer, minimum: 0 }
+        omitted: { type: integer, minimum: 0 }
+        warning: { type: string }
+        next_cursor: { type: string }
+    MemorySearchRequest:
+      type: object
+      additionalProperties: false
+      required: [query, workspace_id, session_id]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 1024 }
+        workspace_id: { type: string, minLength: 1, maxLength: 256 }
+        session_id: { type: string, minLength: 1, maxLength: 256 }
+        limit: { type: integer, minimum: 1, maximum: 20, default: 10 }
+    MemorySearchResponse:
+      type: object
+      additionalProperties: false
+      required: [version, items, included, omitted, receipt_id]
+      properties:
+        version: { type: string, const: 'talaria.memory-search.v1' }
+        items: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/MemoryItem' } }
+        included: { type: integer, minimum: 0 }
+        omitted: { type: integer, minimum: 0 }
+        receipt_id: { type: string, format: uuid }
+    MemoryItem:
+      type: object
+      additionalProperties: false
+      required: [memory_id, revision_id, workspace_id, kind, title, content, tags, trust, lifecycle]
+      properties:
+        memory_id: { type: string, format: uuid }
+        revision_id: { type: string, format: uuid }
+        workspace_id: { type: string }
+        kind: { type: string, enum: [state, procedure, failure, standing_instruction] }
+        title: { type: string, maxLength: 256 }
+        content: { type: string, maxLength: 8192 }
+        tags: { type: array, maxItems: 20, items: { type: string, maxLength: 64 } }
+        trust: { type: string, enum: [verified] }
+        lifecycle: { type: string, enum: [active] }
+        resolution_state: { type: string, enum: [open, resolved] }
+        score: { type: number }
+    Explanation:
+      type: object
+      additionalProperties: false
+      required: [memory_id, revision_id, trust, lifecycle, pinned, created_at, updated_at]
+      properties:
+        memory_id: { type: string, format: uuid }
+        revision_id: { type: string, format: uuid }
+        trust: { type: string, enum: [verified, unverified] }
+        lifecycle: { type: string, enum: [active, quarantined, forgotten, purged] }
+        pinned: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        resolution_state: { type: string, enum: [open, resolved] }
+security:
+  - bearerAuth: []

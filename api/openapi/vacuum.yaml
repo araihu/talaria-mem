@@ -1,0 +1,5 @@
+# Vacuum's project rules are intentionally local and deterministic. The source
+# document remains the normative contract; this file only configures the
+# linter and must never contain credentials or network references.
+extends: []
+rules: {}
