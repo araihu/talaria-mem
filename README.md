@@ -27,7 +27,7 @@ go vet ./...
 go generate ./...
 make sqlc-generate
 vacuum lint api/openapi/talaria.yaml --config api/openapi/vacuum.yaml
-vacuum bundle api/openapi/talaria.yaml
+vacuum bundle api/openapi/talaria.yaml /tmp/talaria-mem.openapi.yaml
 go test ./test/acceptance -count=1
 ```
 

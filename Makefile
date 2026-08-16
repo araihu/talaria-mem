@@ -36,8 +36,9 @@ openapi-lint:
 			$(GO) install github.com/daveshanley/vacuum@$(VACUUM_VERSION); \
 			vacuum_bin="$$( $(GO) env GOPATH )/bin/vacuum"; \
 		fi; \
+		mkdir -p "$(BUILD_DIR)"; \
 		"$$vacuum_bin" lint "$(OPENAPI_SOURCE)" --config "$(OPENAPI_OVERLAY)"; \
-		"$$vacuum_bin" bundle "$(OPENAPI_SOURCE)"; \
+		"$$vacuum_bin" bundle "$(OPENAPI_SOURCE)" "$(BUILD_DIR)/talaria.openapi.yaml"; \
 	fi
 
 source-tree-clean:

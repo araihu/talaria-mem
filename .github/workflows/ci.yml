@@ -39,5 +39,5 @@ jobs:
           go install github.com/daveshanley/vacuum@v0.30.0
           if test -f api/openapi/talaria.yaml; then
             vacuum lint api/openapi/talaria.yaml --config api/openapi/vacuum.yaml
-            vacuum bundle api/openapi/talaria.yaml -o "$RUNNER_TEMP/talaria.openapi.yaml"
+            vacuum bundle api/openapi/talaria.yaml "$RUNNER_TEMP/talaria.openapi.yaml"
           fi
