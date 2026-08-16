@@ -1,0 +1,29 @@
+task=T4
+phase=RED
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=26594bc2caf5dd16433f16e372f8485c47b91443
+tested_source_tree=9a950374e24e66027f8991c32705fb2b37b87f17
+parent=T2-green a99e5bd66643372063209fce9aafc4a67e27e61c
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1
+command_sha256=93d909adbbdec3072bae46dceddb29ba07f9ef968e66f220d6a8e38f2b39e9ce
+fixture=testdata/secrets/rule-upgrade-uncertain.json
+fixture_sha256=7f8a58a0308da6b9cb052f47b58eb6277ae5f15afc2e8982977805bd076589b6
+expected_exit=1
+actual_exit=1
+network_prefix=none (literal plan RED command; no disabled-network prefix)
+stdout_bytes=207
+stdout_sha256=33e24afc67f14d538faf1542099e6f6e89dfe0e8451bf0b24e86643ce791fc06
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+--- FAIL: TestRuleUpgrade (0.00s)
+    rule_upgrade_test.go:19: uncertain candidate accepted; expected discard without activation
+FAIL
+FAIL	github.com/guilhermecastro/talaria-mem/internal/scanner	0.383s
+FAIL
+stdout_end
+stderr_begin
+stderr_end
+assertion=uncertain candidate fixture decoded; RED fails because candidate loader accepts a candidate that must be discarded

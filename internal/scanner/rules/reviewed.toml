@@ -1,0 +1,21 @@
+title = "Talaria-Mem reviewed offline rules"
+description = "Pinned local-only boundary rules for Talaria-Mem v0.0.1"
+betterleaksMinVersion = "1.7.4"
+
+[[rules]]
+id = "talaria-github-fine-grained-pat"
+description = "GitHub fine-grained personal access token"
+regex = '''github_pat_[A-Za-z0-9_]{82}'''
+keywords = ["github_pat_"]
+
+[[rules]]
+id = "talaria-aws-access-key-id"
+description = "AWS access key ID"
+regex = '''AKIA[0-9A-Z]{16}'''
+keywords = ["AKIA"]
+
+[[rules]]
+id = "talaria-private-key-header"
+description = "Private key material header"
+regex = '''-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'''
+keywords = ["PRIVATE KEY"]
