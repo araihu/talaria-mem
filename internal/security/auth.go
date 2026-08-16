@@ -129,7 +129,7 @@ func (authenticator *Authenticator) Authenticate(request *http.Request) error {
 	if !originAllowed(request.Header) {
 		return ErrAuthOrigin
 	}
-	if hasCredentialInQuery(request.URL) || hasCredentialCookie(request.Cookies()) {
+	if hasCredentialInQuery(request.URL) || hasCredentialCookie(request.Cookies()) || len(request.Header.Values("Cookie")) > 0 {
 		return ErrAuthCredentialPath
 	}
 	values := request.Header.Values("Authorization")
@@ -395,14 +395,10 @@ func hasCredentialInQuery(query *url.URL) bool {
 }
 
 func hasCredentialCookie(cookies []*http.Cookie) bool {
-	for _, cookie := range cookies {
-		if cookie != nil {
-			if _, found := credentialNames[strings.ToLower(cookie.Name)]; found {
-				return true
-			}
-		}
-	}
-	return false
+	// The daemon has no cookie-authenticated browser surface. Rejecting every
+	// parsed cookie closes both known bearer names and future cookie credential
+	// names without maintaining an allowlist.
+	return len(cookies) > 0
 }
 
 // RequestPolicyError is useful to adapters that need a stable diagnostic
