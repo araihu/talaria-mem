@@ -1,0 +1,24 @@
+task=T4
+phase=GREEN
+approved_base_commit=c087dc98b539bda96727324247eef3432b60f6dd
+approved_base_tree=aec9172476c4741f9a0900c23dda9b8d0035f438
+tested_source_commit=c2f7c96fec6fa93bb68b8ed044d801ec689a8b74
+tested_source_tree=3c2cb94e50bc1e04d094684a5fd1098e3b83e97c
+parent=T4-red-evidence 4581da55c46d124f4c897f3bef2570661fcb18a3
+plan=docs/superpowers/plans/2026-08-15-talaria-mem-v0.0.1-implementation.md sha256=3db2696ff8dcef59cc0c7ca6a1c893a161da22e8731bbfba7fdde2dc8470cf8e
+command=TALARIA_SCANNER_NETWORK=disabled go test ./internal/scanner -run 'TestBoundary|TestRuleUpgrade|TestNoEgress' -count=1
+command_sha256=bd9c45fedf292b493fc4479975b104c53af62eb7d7f8fc295ee2f58711763b09
+fixture=testdata/secrets/canary-in-log-or-error.json
+fixture_sha256=267052e2e0abb9822b8b4a8e63743de03ab5af38fea23a5b2ee81306516eb1c5
+expected_exit=0
+actual_exit=0
+stdout_bytes=68
+stdout_sha256=bcce5dcb492d956f6907527f3ac2209526221cde02d8644c24ae2937ad661794
+stderr_bytes=0
+stderr_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+stdout_begin
+ok  	github.com/guilhermecastro/talaria-mem/internal/scanner	0.488s
+stdout_end
+stderr_begin
+stderr_end
+assertion=boundary, comparative rule upgrade, panic/timeout containment and no-egress tests pass; canary fixture decoded by TestRuleUpgradeCandidateIsComparativeOnly
