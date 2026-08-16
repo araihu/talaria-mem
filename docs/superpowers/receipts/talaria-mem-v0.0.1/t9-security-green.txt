@@ -1,0 +1,17 @@
+task=T9
+scope=root-key-hkdf-bearer-auth-managed-filesystem
+command=TALARIA_SCANNER_NETWORK=disabled go test ./internal/security ./internal/adapters/filesystem -run 'TestKeyDerivation|TestAuth|TestNoEgress|TestManagedFilesystem' -count=1
+expected_exit=0
+actual_exit=0
+raw_output_sha256=5fafdcb0cb10ad9e92e47a258448615800edb2e969e0931da5ea61b5c04fd855
+command_race=go test -race ./internal/security ./internal/adapters/filesystem
+expected_race_exit=0
+actual_race_exit=0
+raw_race_output_sha256=0e9a2563df0d7722db650a33257674a39e732a533374dd3702894f77ac7d9d19
+command_vet=go vet ./internal/security ./internal/adapters/filesystem
+expected_vet_exit=0
+actual_vet_exit=0
+raw_vet_output_sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+fixture=testdata/security/egress-connect.json
+coverage=key-derivation-purpose-version;root-key-loss-corruption;token-rotation;constant-time-comparison;loopback-host-origin-forwarding-credential-method-content-type;reader-writer-bounds;no-egress-source-process;managed-owner-mode-no-follow-no-clobber-fingerprint-fsync
+note=red evidence was not reconstructed on this continuation branch; green evidence is from the clean T9 implementation worktree

@@ -1,0 +1,12 @@
+{
+  "daemon": "talaria-mem",
+  "forbidden": [
+    "http.Client",
+    "http.DefaultClient",
+    "http.Get",
+    "http.Post",
+    "net.Dial",
+    "tls.Dial"
+  ],
+  "policy": "local-only; outbound network is not a runtime capability"
+}
