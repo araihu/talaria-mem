@@ -139,8 +139,8 @@ func TestMCPContentOutputGuardAndMutationExclusion(t *testing.T) {
 	mutation := mcpRequest(token, `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"memory_create","arguments":{}}}`)
 	recorder = httptest.NewRecorder()
 	server.ServeHTTP(recorder, mutation)
-	if !strings.Contains(recorder.Body.String(), "tool not found") && !strings.Contains(recorder.Body.String(), "unknown tool") {
-		t.Fatalf("mutation tool unexpectedly present: %s", recorder.Body.String())
+	if !strings.Contains(recorder.Body.String(), "mutation service unavailable") {
+		t.Fatalf("mutation service availability error missing: %s", recorder.Body.String())
 	}
 	secretTool := mcpRequest(token, `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"sk_live_secret_should_not_echo","arguments":{}}}`)
 	recorder = httptest.NewRecorder()

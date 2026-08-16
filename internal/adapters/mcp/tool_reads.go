@@ -38,7 +38,7 @@ func ReadToolDefinitions() []ToolDefinition {
 }
 
 func (server *Server) registerSDKTools() {
-	for _, definition := range ReadToolDefinitions() {
+	for _, definition := range AllToolDefinitions() {
 		definition := definition
 		server.sdk.AddTool(&sdk.Tool{
 			Name:        definition.Name,
@@ -55,10 +55,16 @@ func (server *Server) registerSDKTools() {
 			if session == "" || !safeSession(session) {
 				return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "MCP session is required"}
 			}
-			if server.config.Reader == nil {
+			if isReadTool(definition.Name) && server.config.Reader == nil {
 				return nil, &jsonrpc.Error{Code: -32002, Message: "retrieval unavailable"}
 			}
-			value, rpcErr := server.readTool(ctx, definition.Name, request.Params.Arguments, session)
+			var value any
+			var rpcErr *rpcError
+			if isReadTool(definition.Name) {
+				value, rpcErr = server.readTool(ctx, definition.Name, request.Params.Arguments, session)
+			} else {
+				value, rpcErr = server.mutationTool(ctx, definition.Name, request.Params.Arguments)
+			}
 			if rpcErr != nil {
 				return nil, &jsonrpc.Error{Code: int64(rpcErr.Code), Message: rpcErr.Message}
 			}
