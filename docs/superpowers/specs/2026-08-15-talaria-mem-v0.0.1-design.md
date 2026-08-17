@@ -1,10 +1,15 @@
 # Talaria-Mem v0.0.1 Design
 
-Status: approved after independent review
+Status: approved target design; current implementation status is tracked in
+`docs/IMPLEMENTATION_STATUS.md`.
 
 Date: 2026-08-15
 
 Milestone: pre-v0.1.0 exploration
+
+This document is the normative target contract. It does not assert that every
+listed CLI, hook, platform installer, or acceptance receipt is wired in the
+current untagged checkout.
 
 ## 1. Purpose
 
@@ -68,7 +73,7 @@ distinguish a human-entered CLI command from a Codex-entered command without an
 external authorization mechanism. The CLI `--verified` flag is therefore an
 explicit trust assertion and workflow boundary, not proof of human presence.
 
-The following are current release blockers rather than deferred hardening:
+The following are target release blockers rather than deferred hardening:
 
 - A detected or uncertain secret must not be returned to Codex.
 - Unverified or quarantined memory must not enter automatic SessionStart or

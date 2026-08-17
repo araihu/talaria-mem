@@ -19,7 +19,6 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/application"
 	"github.com/guilhermecastro/talaria-mem/internal/cli"
 	"github.com/guilhermecastro/talaria-mem/internal/cli/commands"
-	"github.com/guilhermecastro/talaria-mem/internal/domain"
 	"github.com/guilhermecastro/talaria-mem/internal/lifecycle"
 	"github.com/guilhermecastro/talaria-mem/internal/maintenance"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
@@ -172,8 +171,8 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	resolver := codex.NewBoundWorkspaceResolver(store)
 	session := codex.NewService(codex.Config{
 		Resolver: resolver,
-		Source: codex.CandidateSourceFunc(func(ctx context.Context, _ string) ([]retrieval.Candidate, error) {
-			return index.Search(ctx, "*", domain.MaxSessionStartItems)
+		Source: codex.CandidateSourceFunc(func(ctx context.Context, workspaceID string) ([]retrieval.Candidate, error) {
+			return index.ListSessionStart(ctx, workspaceID)
 		}),
 		Usage: usage,
 		Guard: memory.Guard,
@@ -220,7 +219,7 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	if setupRequest.BinaryPath == "" {
 		setupRequest.BinaryPath, _ = os.Executable()
 	}
-	setup := lifecycle.NewSetupService(nil)
+	setup := lifecycle.NewSetupService(lifecycle.NewCodexHookInstaller())
 	registry := cli.NewRegistry()
 	_ = commands.RegisterDB(registry, commands.NewDBCommands(commands.NewBackupCommands(backup), nil))
 	_ = commands.RegisterDaemon(registry, commands.NewDaemonCommands(daemon))
@@ -243,7 +242,7 @@ func RunSetup(ctx context.Context, args []string, configuration Config) error {
 	if err != nil {
 		return err
 	}
-	if err := environment.EnsureDirectories(); err != nil {
+	if err := environment.EnsureDirectoriesForSetup(); err != nil {
 		return err
 	}
 	if configuration.Stdout == nil {
@@ -271,7 +270,7 @@ func RunSetup(ctx context.Context, args []string, configuration Config) error {
 			return err
 		}
 	}
-	setup := lifecycle.NewSetupService(nil)
+	setup := lifecycle.NewSetupService(lifecycle.NewCodexHookInstaller())
 	registry := cli.NewRegistry()
 	if err := commands.RegisterSetup(registry, commands.NewSetupCommands(setup, request)); err != nil {
 		return err
@@ -400,7 +399,7 @@ func (starter httpSessionStarter) SessionStart(ctx context.Context, request http
 	if starter.service == nil {
 		return httpadapter.SessionStartResponse{}, errors.New("session start unavailable")
 	}
-	response, err := starter.service.SessionStart(ctx, codex.Request{EventID: request.SessionId, SessionID: request.SessionId, HookName: codex.HookName, WorkingDirectory: request.WorkspaceId})
+	response, err := starter.service.SessionStart(ctx, codex.Request{EventID: request.EventId, SessionID: request.SessionId, HookName: string(request.HookName), WorkingDirectory: request.WorkingDirectory})
 	if err != nil {
 		return httpadapter.SessionStartResponse{}, err
 	}

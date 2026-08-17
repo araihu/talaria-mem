@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/guilhermecastro/talaria-mem/internal/application"
@@ -18,10 +19,13 @@ import (
 )
 
 const (
-	HealthVersion       = "talaria.health.v1"
-	ReadinessVersion    = "talaria.ready.v1"
-	SessionStartVersion = "talaria.session-start.v1"
-	SearchVersion       = "talaria.memory-search.v1"
+	HealthVersion        = "talaria.health.v1"
+	ReadinessVersion     = "talaria.ready.v1"
+	SessionStartVersion  = "talaria.session-start.v1"
+	SearchVersion        = "talaria.memory-search.v1"
+	maxSessionEventBytes = 256
+	maxSessionIDBytes    = 256
+	maxWorkingDirBytes   = 512
 )
 
 // SessionStarter is implemented by the T11 context-selection service. T10
@@ -186,16 +190,16 @@ func (server *Server) handleSessionStart(writer http.ResponseWriter, request *ht
 		return
 	}
 	var input SessionStartRequest
-	if err := decodeJSON(request, &input); err != nil {
+	if err := decodeJSONAllowUnknown(request, &input); err != nil {
 		writeError(writer, err)
 		return
 	}
-	if input.SessionId == "" || input.WorkspaceId == "" {
-		writeError(writer, domain.NewError(domain.CodeValidation, "session and workspace are required", false))
+	if input.EventId == "" || input.SessionId == "" || input.WorkingDirectory == "" || !input.HookName.Valid() {
+		writeError(writer, domain.NewError(domain.CodeValidation, "event, session, hook, and working directory are required", false))
 		return
 	}
-	if input.Query != nil && len([]byte(*input.Query)) > domain.MaxQueryBytes {
-		writeError(writer, domain.NewError(domain.CodeValidation, "search query is oversized", false))
+	if !validSessionStartString(input.EventId, maxSessionEventBytes) || !validSessionStartString(input.SessionId, maxSessionIDBytes) || !validSessionStartString(input.WorkingDirectory, maxWorkingDirBytes) {
+		writeError(writer, domain.NewError(domain.CodeValidation, "session start field is invalid or oversized", false))
 		return
 	}
 	result, err := server.config.SessionStart.SessionStart(request.Context(), input)
@@ -213,6 +217,10 @@ func (server *Server) handleSessionStart(writer http.ResponseWriter, request *ht
 		}
 	}
 	writeJSON(writer, http.StatusOK, result)
+}
+
+func validSessionStartString(value string, maxBytes int) bool {
+	return utf8.ValidString(value) && len([]byte(value)) <= maxBytes && !strings.ContainsAny(value, "\x00\r\n")
 }
 
 func (server *Server) handleSearch(writer http.ResponseWriter, request *http.Request) {
@@ -375,6 +383,14 @@ func (server *Server) guardItem(ctx context.Context, item retrieval.SearchItem, 
 }
 
 func decodeJSON(request *http.Request, destination any) error {
+	return decodeJSONWithUnknownPolicy(request, destination, true)
+}
+
+func decodeJSONAllowUnknown(request *http.Request, destination any) error {
+	return decodeJSONWithUnknownPolicy(request, destination, false)
+}
+
+func decodeJSONWithUnknownPolicy(request *http.Request, destination any, rejectUnknown bool) error {
 	if request == nil || request.Body == nil {
 		return domain.NewError(domain.CodeValidation, "JSON body is required", false)
 	}
@@ -391,11 +407,16 @@ func decodeJSON(request *http.Request, destination any) error {
 	if len(body) == 0 {
 		return domain.NewError(domain.CodeValidation, "JSON body is required", false)
 	}
+	if !utf8.Valid(body) {
+		return domain.NewError(domain.CodeValidation, "invalid JSON UTF-8", false)
+	}
 	if err := domain.RejectDuplicateJSONKeys(body); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(strings.NewReader(string(body)))
-	decoder.DisallowUnknownFields()
+	if rejectUnknown {
+		decoder.DisallowUnknownFields()
+	}
 	if err := decoder.Decode(destination); err != nil {
 		return domain.NewError(domain.CodeValidation, "invalid JSON request", false)
 	}

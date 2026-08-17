@@ -1,9 +1,11 @@
 # Talaria-Mem Roadmap
 
-This roadmap separates the first working local journey from later capability
-and hardening. Items after the v0.0.1 section are not commitments for v0.0.1.
+This roadmap separates the target v0.0.1 journey from later capability and
+hardening. It is not a release checklist. The current checkout is summarized
+in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md); items that
+are not composed or freshly evidenced remain open before a release.
 
-## v0.0.1 — Explicit local memory
+## v0.0.1 target — Explicit local memory
 
 - One local Go binary and per-user daemon.
 - Codex SessionStart and MCP integration.

@@ -390,24 +390,110 @@ func TestFTSEligibility(t *testing.T) {
 	}
 }
 
+func TestIndexSearchWildcardListsEligibleRows(t *testing.T) {
+	database := openTestDB(t)
+	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ab", "eligible", domain.TrustVerified, domain.LifecycleActive)
+	seedEligibleMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ac", "second", domain.TrustVerified, domain.LifecycleActive)
+	if err := NewRepository(database).RebuildFTS(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	items, err := NewIndex(database).Search(context.Background(), "*", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("wildcard result count = %d, want 2", len(items))
+	}
+	if items[0].RawBM25 != -1 || items[1].RawBM25 != -1 {
+		t.Fatalf("wildcard raw BM25 values = %v, %v; want -1", items[0].RawBM25, items[1].RawBM25)
+	}
+}
+
+func TestIndexListSessionStartScopesAllCandidates(t *testing.T) {
+	database := openTestDB(t)
+	targetWorkspace := "018f1f61-7b5c-7abc-8def-1123456789ab"
+	foreignWorkspace := "018f1f61-7b5c-7abc-8def-1123456789ac"
+	seedEligibleMemoryInWorkspace(t, database, "018f1f61-7b5c-7abc-8def-0123456789ab", "target", targetWorkspace, domain.TrustVerified, domain.LifecycleActive)
+	pinnedID := "018f1f61-7b5c-7abc-8def-112345670000"
+	for index := 0; index <= domain.MaxSessionStartItems; index++ {
+		memoryID := fmt.Sprintf("018f1f61-7b5c-7abc-8def-11234567%04x", index)
+		seedEligibleMemoryInWorkspace(t, database, memoryID, "target-extra", targetWorkspace, domain.TrustVerified, domain.LifecycleActive)
+	}
+	if _, err := database.SQL().ExecContext(context.Background(), "UPDATE memories SET kind = 'standing_instruction', pinned = 1 WHERE id = ?", pinnedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.SQL().ExecContext(context.Background(), "UPDATE memory_revisions SET kind = 'standing_instruction' WHERE memory_id = ?", pinnedID); err != nil {
+		t.Fatal(err)
+	}
+	for index := 0; index < domain.MaxSessionStartItems; index++ {
+		memoryID := fmt.Sprintf("018f1f61-7b5c-7abc-8def-01234567%04x", index)
+		seedEligibleMemoryInWorkspace(t, database, memoryID, "foreign", foreignWorkspace, domain.TrustVerified, domain.LifecycleActive)
+	}
+	seedGlobalMemory(t, database, "018f1f61-7b5c-7abc-8def-0123456789ad", "global")
+	if err := NewRepository(database).RebuildFTS(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	items, err := NewIndex(database).ListSessionStart(context.Background(), targetWorkspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCount := 2 + domain.MaxSessionStartItems + 1
+	if len(items) != wantCount {
+		t.Fatalf("session-start candidate count = %d, want %d scoped candidates", len(items), wantCount)
+	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		seen[item.Memory.ID] = true
+	}
+	if !seen["018f1f61-7b5c-7abc-8def-0123456789ab"] || !seen[pinnedID] || !seen["018f1f61-7b5c-7abc-8def-0123456789ad"] {
+		t.Fatalf("session-start candidates = %v", seen)
+	}
+}
+
 func seedEligibleMemory(t *testing.T, database *DB, memoryID, title string, trust domain.Trust, lifecycle domain.Lifecycle) {
+	seedEligibleMemoryInWorkspace(t, database, memoryID, title, "018f1f61-7b5c-7abc-8def-1123456789ab", trust, lifecycle)
+}
+
+func seedEligibleMemoryInWorkspace(t *testing.T, database *DB, memoryID, title, workspaceID string, trust domain.Trust, lifecycle domain.Lifecycle) {
 	t.Helper()
 	ctx := context.Background()
-	revisionID := memoryID[:24] + "f" + memoryID[25:]
+	revisionID := memoryID + "-revision"
 	err := database.WithTx(ctx, func(tx *sql.Tx) error {
+		workspaceName := "workspace-" + workspaceID[len(workspaceID)-4:]
 		if _, err := tx.ExecContext(ctx, `INSERT INTO workspaces(id, name, revision_watermark, created_at, updated_at)
-		VALUES ('018f1f61-7b5c-7abc-8def-1123456789ab', 'workspace', 0, '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')
-		ON CONFLICT(id) DO NOTHING`); err != nil {
+		VALUES (?, ?, 0, '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')
+		ON CONFLICT(id) DO NOTHING`, workspaceID, workspaceName); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO memories(id, workspace_id, user_global, kind, trust, lifecycle, created_at, updated_at)
-		VALUES (?, '018f1f61-7b5c-7abc-8def-1123456789ab', 0, 'state', ?, ?, '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z');
-	`, memoryID, trust, lifecycle); err != nil {
+		VALUES (?, ?, 0, 'state', ?, ?, '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z');
+	`, memoryID, workspaceID, trust, lifecycle); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO memory_revisions(id, memory_id, revision_number, kind, title, content, tags_json, trust, lifecycle, created_at)
 		VALUES (?, ?, 1, 'state', ?, 'body', '[]', ?, ?, '2026-08-15T00:00:00.000000000Z');
 	`, revisionID, memoryID, title, trust, lifecycle); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, "UPDATE memories SET current_revision_id = ? WHERE id = ?", revisionID, memoryID)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedGlobalMemory(t *testing.T, database *DB, memoryID, title string) {
+	t.Helper()
+	ctx := context.Background()
+	revisionID := memoryID + "-revision"
+	err := database.WithTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO memories(id, workspace_id, user_global, kind, trust, lifecycle, created_at, updated_at)
+		VALUES (?, NULL, 1, 'state', 'verified', 'active', '2026-08-15T00:00:00.000000000Z', '2026-08-15T00:00:00.000000000Z')`, memoryID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO memory_revisions(id, memory_id, revision_number, kind, title, content, tags_json, trust, lifecycle, created_at)
+		VALUES (?, ?, 1, 'state', ?, 'body', '[]', 'verified', 'active', '2026-08-15T00:00:00.000000000Z')`, revisionID, memoryID, title); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, "UPDATE memories SET current_revision_id = ? WHERE id = ?", revisionID, memoryID)

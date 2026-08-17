@@ -22,7 +22,7 @@ import (
 const (
 	ProtocolVersion = "2025-03-26"
 	ServerName      = "talaria-mem"
-	ServerVersion   = "0.0.1"
+	ServerVersion   = "0.0.2"
 )
 
 // ReadService is intentionally compatible with the retrieval/application

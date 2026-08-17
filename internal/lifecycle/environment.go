@@ -24,7 +24,7 @@ const (
 // normal installation path uses DefaultEnvironment and creates its private
 // directories explicitly, while acceptance fixtures inject all three paths.
 //
-//go:generate sh -c "go tool envdoc -types Environment -output environment.md -format markdown && perl -0pi -e 's/\\n+\\z/\\n/' environment.md"
+//go:generate sh -c "go tool envdoc -types Environment -output environment.md -format markdown && go run ../scanner/envdoc_normalize.go environment.md"
 type Environment struct {
 	// Private state directory for the database, root-owned lifecycle state, and receipts.
 	StateDir string `env:"TALARIA_STATE_DIR,required,notEmpty"`
@@ -169,12 +169,30 @@ func (configuration Environment) ValidatePaths() error {
 	return nil
 }
 
-// EnsureDirectories creates only the final managed directories.  Every
-// parent must already exist and pass the same ownership/no-follow checks; no
-// recursive mkdir can silently claim an arbitrary path tree.
+// EnsureDirectories creates only the final managed directories. Every parent
+// must already exist and pass the same ownership/no-follow checks; no
+// recursive mkdir can silently claim an arbitrary path tree. Normal runtime
+// composition uses this strict form so a missing installation is explicit.
 func (configuration Environment) EnsureDirectories() error {
 	for _, path := range []string{configuration.StateDir, configuration.ConfigDir, configuration.BackupDir} {
 		if err := ensureManagedDirectory(path); err != nil {
+			return err
+		}
+	}
+	return configuration.Validate()
+}
+
+// EnsureDirectoriesForSetup performs the narrowly-scoped first-install
+// expansion. It may create one missing, owner-controlled immediate parent
+// (the private installation root) and then the managed leaf directories. It
+// never creates a recursive path tree and is intentionally not used by normal
+// daemon composition.
+func (configuration Environment) EnsureDirectoriesForSetup() error {
+	if err := configuration.ValidatePaths(); err != nil {
+		return err
+	}
+	for _, path := range []string{configuration.StateDir, configuration.ConfigDir, configuration.BackupDir} {
+		if err := ensureManagedDirectoryForSetup(path); err != nil {
 			return err
 		}
 	}
@@ -231,6 +249,58 @@ func ensureManagedDirectory(path string) error {
 	}
 	if parentInfo.Mode()&os.ModeSymlink != 0 || !parentInfo.IsDir() || !currentUserOwns(parentInfo) {
 		return errors.New("directory parent is unsafe")
+	}
+	if err := os.Mkdir(path, ManagedDirectoryMode.Perm()); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	return os.Chmod(path, ManagedDirectoryMode.Perm())
+}
+
+func ensureManagedDirectoryForSetup(path string) error {
+	if path == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return errors.New("path must be absolute and canonical")
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() || !currentUserOwns(info) {
+			return errors.New("existing path is unsafe")
+		}
+		if err := os.Chmod(path, ManagedDirectoryMode.Perm()); err != nil {
+			return err
+		}
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	parent := filepath.Dir(path)
+	parentInfo, err := os.Lstat(parent)
+	createdParent := false
+	if errors.Is(err, os.ErrNotExist) {
+		grandparent := filepath.Dir(parent)
+		grandparentInfo, grandparentErr := os.Lstat(grandparent)
+		if grandparentErr != nil {
+			return grandparentErr
+		}
+		if grandparentInfo.Mode()&os.ModeSymlink != 0 || !grandparentInfo.IsDir() || !currentUserOwns(grandparentInfo) {
+			return errors.New("directory grandparent is unsafe")
+		}
+		mkdirErr := os.Mkdir(parent, ManagedDirectoryMode.Perm())
+		if mkdirErr != nil && !errors.Is(mkdirErr, os.ErrExist) {
+			return mkdirErr
+		}
+		createdParent = mkdirErr == nil
+		parentInfo, err = os.Lstat(parent)
+	}
+	if err != nil {
+		return err
+	}
+	if parentInfo.Mode()&os.ModeSymlink != 0 || !parentInfo.IsDir() || !currentUserOwns(parentInfo) {
+		return errors.New("directory parent is unsafe")
+	}
+	if createdParent && parentInfo.Mode().Perm() != ManagedDirectoryMode.Perm() {
+		if err := os.Chmod(parent, ManagedDirectoryMode.Perm()); err != nil {
+			return err
+		}
 	}
 	if err := os.Mkdir(path, ManagedDirectoryMode.Perm()); err != nil && !errors.Is(err, os.ErrExist) {
 		return err

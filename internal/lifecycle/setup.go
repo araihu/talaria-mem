@@ -53,7 +53,8 @@ type SetupResult struct {
 }
 
 // ServiceInstaller is deliberately separate from Codex config replacement so
-// a platform service failure can roll the config back to its verified backup.
+// an integration-artifact failure can roll the config back to its verified
+// backup. Implementations must not start a host service during setup.
 type ServiceInstaller interface {
 	Install(context.Context, SetupRequest, string) error
 	Remove(context.Context, SetupRequest, string) error
@@ -147,6 +148,11 @@ func (service *SetupService) Apply(ctx context.Context, request SetupRequest) (S
 		return SetupResult{}, err
 	}
 	if len(plan.Changes) == 0 {
+		if service.Installer != nil && !request.Remove {
+			if err := service.Installer.Install(ctx, request, plan.Fingerprint); err != nil {
+				return SetupResult{}, err
+			}
+		}
 		return plan, nil
 	}
 	current, exists, err := readConfig(request.ConfigPath)
@@ -226,7 +232,10 @@ func validateSetupRequest(request SetupRequest) error {
 	if err := validateLoopbackEndpoint(request.Endpoint); err != nil {
 		return err
 	}
-	return validateManagedParent(request.ConfigPath)
+	if err := validateManagedParent(request.ConfigPath); err != nil {
+		return err
+	}
+	return validateManagedParent(request.HookPath)
 }
 
 func validateLoopbackEndpoint(endpoint string) error {

@@ -216,6 +216,35 @@ func TestSessionStartBoundsAndWorkspaceBinding(t *testing.T) {
 	}
 }
 
+func TestSessionStartRanksPinnedAndUsageBoostBeyondTwentyCandidates(t *testing.T) {
+	now := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
+	candidates := make([]retrieval.Candidate, 0, domain.MaxSessionStartItems+3)
+	for index := 0; index < domain.MaxSessionStartItems+1; index++ {
+		id := "recent-" + string(rune('a'+index))
+		candidates = append(candidates, sessionCandidate(id, "workspace-1", false, domain.MemoryKindState, id, "recent", false, now))
+	}
+	oldUsage := sessionCandidate("old-usage", "workspace-1", false, domain.MemoryKindState, "old usage", "old usage", false, now.Add(-365*24*time.Hour))
+	oldPinned := sessionCandidate("old-pinned", "workspace-1", false, domain.MemoryKindStandingInstruction, "old pinned", "old pinned", true, now.Add(-365*24*time.Hour))
+	candidates = append(candidates, oldUsage, oldPinned)
+	guard := &sessionGuard{}
+	service := testSessionService(candidates, guard)
+	service.config.Usage = &sessionUsage{stats: map[string]retrieval.UsageStats{"old-usage": {DistinctSessionHits: 20}}}
+	response, err := service.SessionStart(context.Background(), sessionRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Included != domain.MaxSessionStartItems || response.Omitted != 3 {
+		t.Fatalf("response counts = %+v", response)
+	}
+	seen := make(map[string]bool, len(response.Items))
+	for _, item := range response.Items {
+		seen[item.MemoryID] = true
+	}
+	if !seen[oldUsage.Memory.ID] || !seen[oldPinned.Memory.ID] {
+		t.Fatalf("boosted candidates missing from response: %v", seen)
+	}
+}
+
 func TestSessionStartNoImplicitWorkspaceOverride(t *testing.T) {
 	called := ""
 	service := NewService(Config{

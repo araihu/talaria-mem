@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Talaria-Mem local control API
-  version: 0.0.1
+  version: 0.0.2
   description: Authenticated, loopback-only control surface for the local memory daemon.
 servers:
   - url: http://127.0.0.1:7437
@@ -177,12 +177,15 @@ components:
         reason: { type: string }
     SessionStartRequest:
       type: object
-      additionalProperties: false
-      required: [session_id, workspace_id]
+      description: Raw Codex SessionStart event. Unknown fields are ignored and
+        are never retained by the application.
+      additionalProperties: true
+      required: [event_id, session_id, hook_name, working_directory]
       properties:
+        event_id: { type: string, minLength: 1, maxLength: 256 }
         session_id: { type: string, minLength: 1, maxLength: 256 }
-        workspace_id: { type: string, minLength: 1, maxLength: 256 }
-        query: { type: string, maxLength: 1024 }
+        hook_name: { type: string, const: SessionStart }
+        working_directory: { type: string, minLength: 1, maxLength: 512 }
     SessionStartResponse:
       type: object
       additionalProperties: false

@@ -1,14 +1,18 @@
 # Talaria-Mem v0.0.1 Implementation Plan
 
+> Historical target plan. The current checkout is not declared complete by
+> this document; see `docs/IMPLEMENTATION_STATUS.md` for composed surfaces and
+> fresh evidence requirements.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `$run-reviewed-worktree-development` to implement this plan task-by-task through frozen, independently reviewed checkpoints. Every task uses TDD and ends with an independently testable commit.
 
-**Goal:** Build the complete local, single-user Talaria-Mem v0.0.1 journey described by the approved architecture specification, with SQLite-canonical memory, Betterleaks boundary scanning, authenticated local interfaces, deterministic projection, recovery, and exhaustive acceptance evidence.
+**Goal:** Build the target local, single-user Talaria-Mem v0.0.1 journey described by the architecture specification, with SQLite-canonical memory, Betterleaks boundary scanning, authenticated local interfaces, deterministic projection, recovery, and reproducible acceptance evidence.
 
-**Architecture:** One Go module and one binary expose one authenticated loopback daemon. CLI, MCP, and Codex SessionStart share application services; only the daemon mutates SQLite. SQLite and FTS5 are canonical, an authenticated transactional outbox schedules deterministic Markdown projection, and all trust/security decisions are enforced before content leaves the process.
+**Target architecture:** One Go module and one binary expose one authenticated loopback daemon. CLI, MCP, and Codex SessionStart share application services; only the daemon mutates SQLite. SQLite and FTS5 are canonical, an authenticated transactional outbox schedules deterministic Markdown projection, and all trust/security decisions are enforced before content leaves the process.
 
 **Tech Stack:** Go; modernc.org/sqlite with FTS5; sqlc; golang-migrate's modernc SQLite driver; Cobra; official MCP Go SDK with Streamable HTTP; Betterleaks behind a Talaria-owned scanner port; oapi-codegen; Vacuum; Go test, race, vet, and failpoint fixtures.
 
-**Spec:** `docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md` (SHA-256 `1a7094653794117f126fab7bca0baf58efeee8985c3eaa73e44608b9992b56c5`)
+**Spec:** `docs/superpowers/specs/2026-08-15-talaria-mem-v0.0.1-design.md` (SHA-256 `3ff85da4f1ef77bcccb65a7869c4515ad2aa7d80ce48e56a6c3b45d2b92b4a27`)
 
 ## Global Constraints
 
@@ -337,7 +341,7 @@ Shared files are owned by the reconciler. Developers must not concurrently edit 
 - Define versioned `/control/v1/session-start`, `/healthz`, `/readyz`, and all CLI/MCP operations with UUIDv7, UTC nanoseconds, strict enums, duplicate-key rejection, 1 MiB default body limit, safe error envelope, receipt ID, and retryability.
 - Generate the HTTP server/client types only after Vacuum lint/bundle; never hand-edit generated output.
 - Implement MCP Streamable HTTP transport and read-only tools `memory_search`, `memory_get`, and `memory_explain`; T12 exclusively implements mutation tools `memory_create`, `memory_update`, `memory_pin`, and `memory_forget` in `internal/adapters/mcp/tool_mutations.go`.
-- Implement stable CLI exit codes 0–7, machine JSON on stdout and human output on stderr, random idempotency keys by default, and no query/content logging. The ordinary CLI uses an authenticated loopback client and never opens SQLite; offline maintenance is limited to the explicitly owned T13/T14 commands and global lock.
+- Target stable CLI exit codes 0–7, machine JSON on stdout and human output on stderr, random idempotency keys by default, and no query/content logging. The target ordinary CLI uses an authenticated loopback client and never opens SQLite; offline maintenance is limited to the explicitly owned T13/T14 commands and global lock. See `docs/IMPLEMENTATION_STATUS.md` for the current composition.
 - Route every HTTP, MCP, and CLI content-output path through T5 `ContentOutputGuard` before serialization or projection handoff. A clean scan is the only path that returns content; a finding invokes T5 `ScanAndQuarantine` atomically and blocks readiness/projection, while scanner error or uncertainty returns no content and performs no mutation. T10 exposes the stable registration boundary for T13's maintenance commands but does not own their implementation.
 
 - [ ] Write failing contract tests for route/method/content type/auth/error/size limits, MCP schema and workspace scope, CLI exit codes and machine output, and every HTTP/MCP/CLI content-output guard/finding/error route.

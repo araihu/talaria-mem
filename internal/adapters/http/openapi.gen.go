@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"path"
@@ -224,6 +225,21 @@ func (e ReadinessResponseVersion) Valid() bool {
 	}
 }
 
+// Defines values for SessionStartRequestHookName.
+const (
+	SessionStart SessionStartRequestHookName = "SessionStart"
+)
+
+// Valid indicates whether the value is a known member of the SessionStartRequestHookName enum.
+func (e SessionStartRequestHookName) Valid() bool {
+	switch e {
+	case SessionStart:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SessionStartResponseVersion.
 const (
 	TalariaSessionStartV1 SessionStartResponseVersion = "talaria.session-start.v1"
@@ -341,12 +357,17 @@ type ReadinessResponse struct {
 // ReadinessResponseVersion defines model for ReadinessResponse.Version.
 type ReadinessResponseVersion string
 
-// SessionStartRequest defines model for SessionStartRequest.
+// SessionStartRequest Raw Codex SessionStart event. Unknown fields are ignored and are never retained by the application.
 type SessionStartRequest struct {
-	Query       *string `json:"query,omitempty"`
-	SessionId   string  `json:"session_id"`
-	WorkspaceId string  `json:"workspace_id"`
+	EventId              string                      `json:"event_id"`
+	HookName             SessionStartRequestHookName `json:"hook_name"`
+	SessionId            string                      `json:"session_id"`
+	WorkingDirectory     string                      `json:"working_directory"`
+	AdditionalProperties map[string]interface{}      `json:"-"`
 }
+
+// SessionStartRequestHookName defines model for SessionStartRequest.HookName.
+type SessionStartRequestHookName string
 
 // SessionStartResponse defines model for SessionStartResponse.
 type SessionStartResponse struct {
@@ -379,37 +400,143 @@ type MemorySearchJSONRequestBody = MemorySearchRequest
 // SessionStartJSONRequestBody defines body for SessionStart for application/json ContentType.
 type SessionStartJSONRequestBody = SessionStartRequest
 
+// Getter for additional properties for SessionStartRequest. Returns the specified
+// element and whether it was found
+func (a SessionStartRequest) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for SessionStartRequest
+func (a *SessionStartRequest) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for SessionStartRequest to handle AdditionalProperties
+func (a *SessionStartRequest) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["event_id"]; found {
+		err = json.Unmarshal(raw, &a.EventId)
+		if err != nil {
+			return fmt.Errorf("error reading 'event_id': %w", err)
+		}
+		delete(object, "event_id")
+	}
+
+	if raw, found := object["hook_name"]; found {
+		err = json.Unmarshal(raw, &a.HookName)
+		if err != nil {
+			return fmt.Errorf("error reading 'hook_name': %w", err)
+		}
+		delete(object, "hook_name")
+	}
+
+	if raw, found := object["session_id"]; found {
+		err = json.Unmarshal(raw, &a.SessionId)
+		if err != nil {
+			return fmt.Errorf("error reading 'session_id': %w", err)
+		}
+		delete(object, "session_id")
+	}
+
+	if raw, found := object["working_directory"]; found {
+		err = json.Unmarshal(raw, &a.WorkingDirectory)
+		if err != nil {
+			return fmt.Errorf("error reading 'working_directory': %w", err)
+		}
+		delete(object, "working_directory")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for SessionStartRequest to handle AdditionalProperties
+func (a SessionStartRequest) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["event_id"], err = json.Marshal(a.EventId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'event_id': %w", err)
+	}
+
+	object["hook_name"], err = json.Marshal(a.HookName)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'hook_name': %w", err)
+	}
+
+	object["session_id"], err = json.Marshal(a.SessionId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'session_id': %w", err)
+	}
+
+	object["working_directory"], err = json.Marshal(a.WorkingDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'working_directory': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"PH5/9ua9XN+s/woAAP//",
+	"1Fhdc9u2Ev0rGNz7SOsrTnKv3pLWbTyTTDN2Px48Hs+KXEmISYBeLGWpHv33DgCKHzJlSW7sad9EEQTO",
+	"nt09OMCDjE2WG42arRw/yBwIMmQk//QFM0Or8x/db6XlWObAcxlJDRnKscz86xuVyEgS3hWKMJFjpgIj",
+	"aeM5ZuA+nBrKgOVYFoUfyavcfWyZlJ7J9TqSfxi6tTnE2FjprkBa1Uvdb4bsWy2D5WfUM57L8ejtu0hm",
+	"Sm+eh4/XXm8+9eGeERk60wtMjRv2ICFJFCujIf1KJkdihVaOp5BajGTe+MvRmPhPnlwvkhlaC7NDRhLG",
+	"qHJ28e4n0Q1nWsEk9VOXbyfGpAjavV4gWWV0QKqtm4khBVLQQxd1bzHsTE1N9FU1RxSCrYNpgW1Cua6m",
+	"NJNvGLNDcrbMU9DAJZpjKCYExuTG8dBgJAHGE1YZdtGSqinGqzjQgrrIXCAQs1q44XcFEGhWGh3uqaGZ",
+	"YUYXYV7QDJNGAM0Ubqr+kLzkSrvZO5NCaE1auOhvLAO3MJrc4/BDFjuQEC6Uy8ihWJgKy81FFkhqqnzw",
+	"ha4eupYq8uRI7reKp60VNe4NqmaqKtaiZs5bILoq6xNCyvMLtLnR9tj+dQkobLM/zG0Xh0800tyvf0gn",
+	"lYvVs3WFU4ovY3a0FGlGzVtq+L/h/0cd8dwqnTRLIhSinzLGpCD3ewoqDb8sg06Unt0obZmKmNvgD+u7",
+	"v99Ur904NjbUFFZdZBMk31Iw85wrxsxuMf7utCtQWJ6HsaNB9RqIYOWnUxwo297GjujlroBb22cdx9G9",
+	"urUN++LZoI6qwitp6Wrt3YV+iUDx/ALvCgyBHVHxqcqU/ybBKRQpy/Fw4KlWmSPHMZ0pHR7qvVZpxllI",
+	"Y3Abbd6Hg9FptG+XtmgbhXSU+XicleO8SztnG7+0laEGvv3UP0s4lY7TIglbXEXyoIvkqkeqH/8lnMqx",
+	"/E+/NqH90o/1G/K3t21MppgPgXCkqXpC7EOPnFhP3XHuKYQf1czVAbQQdiXsAiFRGq19ZrYIIVntciNg",
+	"Q6zH8OAnPCT+sPLTW95lqNZLBuK9ShCcf4I2JpUHOykv4F78YBJciuZUAheouSd+07fa3GsxVZgmVgCh",
+	"UDNtCBMBOvHPGhdIgpDBmUIxWQmeo4A8T1XsPWtPblPqJ3+eAMyNub0JJ5ya2SZy+RKS4/bvRBHGbB6J",
+	"3tvh6DjdqaJvAWuG1rXo/uT/a7VI45Jv4oKsoc5eOlirnmi6kukT67jqbL5I3gNp97MLw3F2oFaurc3l",
+	"CSF7nGBfuXFBileXjtaQsQkCIX0oXK1tnn7ayLLJ4a7wttN/4OTKD6jDnTPn4Riv9NQEB9DUAzcxana9",
+	"i0kkUmPyCcS3J0anK+HsCplU2IKmEKOYGvLdnpoYUhEEXiSAWej60pvJX0MSTr5gVg7dTPTh63lD4MZy",
+	"0Bv0Rj7nOWrIlRzLN71hb+AkBHjuCeiXH/cXw35Ysh/2FH8bY4IAuhr36nOeyHFr0y7vQtDyRxOEveH+",
+	"G7LV/1Zqe31Tsr/g25Zs3a4LJ7/BivtO9cGMBoMXglDKgcfQTvHvpe+NhI1Ba6STmUu2CCwKQlukbHsu",
+	"DaffEV77rqgLF6Qq8TOL8vzUc8PWUVfKHyrLvXYLz3Bn2n9G9uVTX9NddQOth/Sra7x1tHds8y5uff3i",
+	"+Q2a+pi9XzSKxY7MBq7KjJ6+XkYDYqENi6kpdCKU9npRNqCrudjkB6a5j8s8BaX3pPusHPX8lL9kDpt3",
+	"eR2EXcIUBYF2m793WNU5UGTIkABDF1mt3W23DG75pJeQwS4/+soy2OmKOrj+6CoSk6pp/KaESxYWU4yD",
+	"c/1HSKDDMHw9DA0H8AjH8M3r4SjLR0xMshK4jBET69WjvLIQRqP4oj4Kf5fh8b0dvCK+S6SFilEoKwoN",
+	"C1ApTFIUhjbiK/xNm3uvtFsgRa6lLlx9/rlTzD6V71+wUbZufztC/EomRmtdCJCqhUdfm1I5vrr2sfiD",
+	"6u5QLsLrF4zk8Rm/K19sCGZY7Y2RF9iczLfQ7f40Gw7n37uWDsK3TbaYFOy3zg2mUDkN9tuHgatrt3NZ",
+	"pMVmx2vP/1kxEqSVpRfO0stIFpSW54Jxvz8cve85Ez4cvz99816ur9d/BQAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

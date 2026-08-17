@@ -20,7 +20,7 @@ type testStarter struct{ called bool }
 
 func (starter *testStarter) SessionStart(_ context.Context, input SessionStartRequest) (SessionStartResponse, error) {
 	starter.called = true
-	return SessionStartResponse{WorkspaceId: input.WorkspaceId, Included: 0, Omitted: 0}, nil
+	return SessionStartResponse{Included: 0, Omitted: 0}, nil
 }
 
 type testReader struct {
@@ -92,7 +92,7 @@ func TestContractHealthReadinessAndSessionStart(t *testing.T) {
 	}{
 		{name: "health", method: http.MethodGet, path: HealthPath, wantStatus: http.StatusOK},
 		{name: "readiness", method: http.MethodGet, path: ReadinessPath, wantStatus: http.StatusOK},
-		{name: "session", method: http.MethodPost, path: SessionStartPath, body: `{"session_id":"s","workspace_id":"w"}`, wantStatus: http.StatusOK},
+		{name: "session", method: http.MethodPost, path: SessionStartPath, body: `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp","transcript_path":"/private/transcript","transcript":{"content":"must not be retained"}}`, wantStatus: http.StatusOK},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := authenticatedRequest(test.method, test.path, token, test.body)
@@ -110,14 +110,14 @@ func TestContractHealthReadinessAndSessionStart(t *testing.T) {
 
 func TestContractAuthenticationAndDuplicateJSONKeys(t *testing.T) {
 	server, token := newTestServer(t, testReader{}, nil)
-	unauthenticated := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"session_id":"s","workspace_id":"w"}`)
+	unauthenticated := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp"}`)
 	unauthenticated.Header.Del("Authorization")
 	recorder := httptest.NewRecorder()
 	server.ServeHTTP(recorder, unauthenticated)
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", recorder.Code)
 	}
-	duplicate := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"session_id":"s","workspace_id":"w","workspace_id":"other"}`)
+	duplicate := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp","event_id":"other"}`)
 	recorder = httptest.NewRecorder()
 	server.ServeHTTP(recorder, duplicate)
 	if recorder.Code != http.StatusBadRequest {
@@ -129,6 +129,41 @@ func TestContractAuthenticationAndDuplicateJSONKeys(t *testing.T) {
 	}
 	if string(envelope.Version) != errorEnvelopeVersion || envelope.ReceiptId == [16]byte{} {
 		t.Fatalf("unsafe envelope = %+v", envelope)
+	}
+}
+
+func TestSessionStartRejectsOversizedFields(t *testing.T) {
+	server, token := newTestServer(t, testReader{}, nil)
+	body := `{"event_id":"` + strings.Repeat("e", 257) + `","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp"}`
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("oversized event status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	body = `{"event_id":"e","session_id":"` + strings.Repeat("s", 257) + `","hook_name":"SessionStart","working_directory":"/tmp"}`
+	recorder = httptest.NewRecorder()
+	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("oversized session status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	body = `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"` + strings.Repeat("/", 513) + `"}`
+	recorder = httptest.NewRecorder()
+	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("oversized working directory status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestSessionStartRejectsInvalidUTF8(t *testing.T) {
+	server, token := newTestServer(t, testReader{}, nil)
+	body := []byte(`{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp","transcript":"`)
+	body = append(body, 0xff)
+	body = append(body, []byte(`"}`)...)
+	request := authenticatedRequest(http.MethodPost, SessionStartPath, token, string(body))
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid UTF-8 status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -176,7 +211,11 @@ func TestSearchRejectsOutOfRangeLimit(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("invalid limit status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if strings.Contains(recorder.Body.String(), "21") {
-		t.Fatal("request-derived limit leaked into error")
+	var envelope ErrorEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Message != "invalid request" {
+		t.Fatalf("request-derived limit leaked into error message: %q", envelope.Message)
 	}
 }

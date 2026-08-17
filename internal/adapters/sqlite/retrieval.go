@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
 	"github.com/guilhermecastro/talaria-mem/internal/retrieval"
@@ -23,7 +24,7 @@ func (index *Index) Search(ctx context.Context, matchExpression string, limit in
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := index.database.sql.QueryContext(ctx, `
+	query := `
 SELECT m.id, m.workspace_id, m.user_global, m.kind, m.trust, m.lifecycle,
        m.current_revision_id, m.pinned, m.created_at, m.updated_at,
        r.id, r.revision_number, r.kind, r.title, r.content, r.tags_json,
@@ -35,23 +36,61 @@ JOIN memories AS m ON m.id = memory_fts.memory_id
 JOIN memory_revisions AS r ON r.id = m.current_revision_id
 WHERE memory_fts MATCH ?
 ORDER BY bm25(memory_fts, 5.0, 1.0, 2.0, 0.0), m.id
-LIMIT ?`, matchExpression, limit)
+	LIMIT ?`
+	args := []any{matchExpression, limit}
+	// SessionStart needs the bounded set of eligible rows, not an FTS query.
+	// SQLite FTS5 does not define MATCH '*' as a match-all expression; keeping
+	// this branch in the adapter prevents the transport from turning a valid
+	// empty-query selection into a service-unavailable error.
+	if strings.TrimSpace(matchExpression) == "*" {
+		query = `
+SELECT m.id, m.workspace_id, m.user_global, m.kind, m.trust, m.lifecycle,
+       m.current_revision_id, m.pinned, m.created_at, m.updated_at,
+       r.id, r.revision_number, r.kind, r.title, r.content, r.tags_json,
+       r.resolution_state, r.trust, r.lifecycle, r.provenance_actor,
+       r.provenance_source, r.provenance_labels_json, r.source_locator,
+       r.created_at, -1.0
+FROM memory_fts
+JOIN memories AS m ON m.id = memory_fts.memory_id
+JOIN memory_revisions AS r ON r.id = m.current_revision_id
+ORDER BY m.updated_at DESC, m.id
+LIMIT ?`
+		args = []any{limit}
+	}
+	rows, err := index.database.sql.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, domain.MapSQLiteError(err)
 	}
-	defer rows.Close()
-	items := make([]retrieval.Candidate, 0, limit)
-	for rows.Next() {
-		item, err := scanCandidate(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
+	return readCandidates(rows, limit)
+}
+
+// ListSessionStart returns the complete scoped candidate set. FTS rows are
+// already restricted to active, verified revisions, but the scope predicate
+// must be part of this query so unrelated workspaces are excluded before
+// Codex applies tier, pin, usage, deduplication, and response-cap policies.
+func (index *Index) ListSessionStart(ctx context.Context, workspaceID string) ([]retrieval.Candidate, error) {
+	if index == nil || index.database == nil || index.database.sql == nil {
+		return nil, domain.NewError(domain.CodeUnavailable, "SQLite retrieval index unavailable", true)
 	}
-	if err := rows.Err(); err != nil {
+	if strings.TrimSpace(workspaceID) == "" {
+		return nil, domain.NewError(domain.CodeValidation, "workspace is required for SessionStart", false)
+	}
+	rows, err := index.database.sql.QueryContext(ctx, `
+SELECT m.id, m.workspace_id, m.user_global, m.kind, m.trust, m.lifecycle,
+       m.current_revision_id, m.pinned, m.created_at, m.updated_at,
+       r.id, r.revision_number, r.kind, r.title, r.content, r.tags_json,
+       r.resolution_state, r.trust, r.lifecycle, r.provenance_actor,
+       r.provenance_source, r.provenance_labels_json, r.source_locator,
+       r.created_at, -1.0
+FROM memory_fts
+JOIN memories AS m ON m.id = memory_fts.memory_id
+JOIN memory_revisions AS r ON r.id = m.current_revision_id
+WHERE (m.workspace_id = ? OR m.user_global = 1)
+ORDER BY m.updated_at DESC, m.id`, workspaceID)
+	if err != nil {
 		return nil, domain.MapSQLiteError(err)
 	}
-	return items, nil
+	return readCandidates(rows, 0)
 }
 
 func (index *Index) Get(ctx context.Context, memoryID string) (retrieval.Candidate, error) {
@@ -112,3 +151,19 @@ func scanCandidate(row rowScanner) (retrieval.Candidate, error) {
 }
 
 var _ retrieval.Index = (*Index)(nil)
+
+func readCandidates(rows *sql.Rows, limit int) ([]retrieval.Candidate, error) {
+	defer rows.Close()
+	items := make([]retrieval.Candidate, 0, limit)
+	for rows.Next() {
+		item, err := scanCandidate(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, domain.MapSQLiteError(err)
+	}
+	return items, nil
+}

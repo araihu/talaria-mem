@@ -23,6 +23,8 @@ func main() {
 		panic(err)
 	}
 	content = append(bytes.TrimRight(content, "\n"), '\n')
+	content = bytes.ReplaceAll(content, []byte("\n - "), []byte("\n- "))
+	content = bytes.ReplaceAll(content, []byte(".  "), []byte(". "))
 	if err := os.WriteFile(path, content, info.Mode().Perm()); err != nil {
 		panic(fmt.Errorf("write normalized environment document: %w", err))
 	}

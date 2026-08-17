@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// HookName is the only Codex hook installed by v0.0.1.
+	// HookName is the only Codex hook installed by v0.0.2.
 	HookName = "SessionStart"
 
 	// MaxRequestBytes bounds the complete hook event. Unknown fields are
