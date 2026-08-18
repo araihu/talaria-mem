@@ -11,6 +11,12 @@ based on `origin/main`. The isolated smoke used temporary `TALARIA_*_DIR`
 directories and a non-default loopback port, so it did not alter the operator's
 real memory database.
 
+A successful run ends with three checks: `/healthz` returns HTTP 200 with
+`"status":"ok"`, a confirmed memory appears in `memory search`, and a
+SessionStart hook preflight returns `hookSpecificOutput` without returning the
+submitted `transcript_path`. This runbook is an operator recipe for the current
+checkout, not release evidence or a supported host-service installer.
+
 ## Prerequisites
 
 - Go 1.26 or newer.
@@ -45,12 +51,12 @@ installation record.
 
 ## CLI contract
 
-The command tree uses Cobra. Use `talaria-mem --help` or any
-`talaria-mem <command> --help` for generated usage; help is side-effect-free and
-does not require credentials, SQLite, or a running daemon. Pass `--json` as a
-persistent flag before or after the command when scripting. Unknown flags and
-invalid positional arguments fail with exit code `2`; machine-readable command
-results go to stdout and human diagnostics go to stderr.
+Use `talaria-mem --help` or any `talaria-mem <command> --help` for generated
+usage; help is side-effect-free and does not require credentials, SQLite, or a
+running daemon. Pass `--json` as a persistent flag before or after the command
+when scripting. Unknown flags and invalid positional arguments fail with exit
+code `2`; machine-readable command results go to stdout and human diagnostics
+go to stderr.
 
 `daemon --address HOST:PORT` is the one bootstrap option: it is consumed before
 runtime composition so authentication and the listener share the same
@@ -258,12 +264,14 @@ The managed group is:
 ```
 
 The [Codex hooks reference](https://developers.openai.com/codex/hooks/) defines
-the input fields (`session_id`, `cwd`, `hook_event_name`, and optional
-`transcript_path`) and the JSON output block
-`hookSpecificOutput.additionalContext`. The generated hook now accepts that
-payload, does not open `transcript_path`, and returns the official output shape.
-The matcher values (`startup`, `resume`, `clear`, and `compact`) select when
-Codex runs the hook; the payload's `hook_event_name` remains `SessionStart`.
+common input fields such as `session_id`, `cwd`, `hook_event_name`, and optional
+`transcript_path`, plus the SessionStart `source` field. The generated hook
+accepts that payload but retains only the three bounded fields needed by the
+daemon; it discards `source`, `transcript_path`, and other unknown fields
+without opening the transcript. Its JSON response uses the official
+`hookSpecificOutput.additionalContext` shape. The matcher values (`startup`,
+`resume`, `clear`, and `compact`) select when Codex runs the hook; the payload's
+`hook_event_name` remains `SessionStart`.
 
 The installer writes the actual absolute hook path. Keep the hook synchronous so
 SessionStart waits for the bounded response. Start the daemon before opening

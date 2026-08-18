@@ -1,12 +1,12 @@
 # Talaria-Mem Roadmap
 
-This roadmap separates the target v0.0.1 journey from later capability and
-hardening. It is not a release checklist. The current checkout is summarized
-in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md); items that
-are not composed or freshly evidenced remain open before a release.
+This roadmap tracks work after the current unreleased v0.0.2 local journey. It
+is not a release checklist. The current checkout is summarized in
+[docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md); items that are
+not composed or freshly evidenced remain open before a release.
 The active consumer-install list is [docs/TASKS.md](docs/TASKS.md).
 
-## v0.0.1 target — Explicit local memory
+## Baseline — explicit local memory
 
 - One local Go binary and per-user daemon.
 - Codex SessionStart and MCP integration.
@@ -19,7 +19,7 @@ The active consumer-install list is [docs/TASKS.md](docs/TASKS.md).
 - Usage-aware ranking and conservative pruning recommendations.
 - No transcript ingestion, model extraction, embeddings, or outbound network.
 
-## After v0.0.1 — Optional local extraction
+## Next — optional local extraction
 
 - Add an extractor port without changing canonical storage contracts.
 - Disabled by default and enabled per workspace.
