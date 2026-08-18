@@ -92,7 +92,7 @@ func TestContractHealthReadinessAndSessionStart(t *testing.T) {
 	}{
 		{name: "health", method: http.MethodGet, path: HealthPath, wantStatus: http.StatusOK},
 		{name: "readiness", method: http.MethodGet, path: ReadinessPath, wantStatus: http.StatusOK},
-		{name: "session", method: http.MethodPost, path: SessionStartPath, body: `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp","transcript_path":"/private/transcript","transcript":{"content":"must not be retained"}}`, wantStatus: http.StatusOK},
+		{name: "session", method: http.MethodPost, path: SessionStartPath, body: `{"session_id":"s","hook_event_name":"SessionStart","cwd":"/tmp","transcript_path":"/private/transcript","transcript":{"content":"must not be retained"}}`, wantStatus: http.StatusOK},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := authenticatedRequest(test.method, test.path, token, test.body)
@@ -108,16 +108,41 @@ func TestContractHealthReadinessAndSessionStart(t *testing.T) {
 	}
 }
 
+func TestSessionStartReturnsOfficialCodexHookOutput(t *testing.T) {
+	server, token := newTestServer(t, testReader{}, nil)
+	body := `{"session_id":"codex-session","transcript_path":"/tmp/codex-rollout.jsonl","cwd":"/workspace/repo","hook_event_name":"SessionStart","model":"gpt-5.6","permission_mode":"default","source":"startup"}`
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		HookSpecificOutput struct {
+			HookEventName     string `json:"hookEventName"`
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(recorder.Body.String(), "codex-rollout.jsonl") {
+		t.Fatalf("transcript path leaked into response: %s", recorder.Body.String())
+	}
+	if response.HookSpecificOutput.HookEventName != "SessionStart" || response.HookSpecificOutput.AdditionalContext == "" {
+		t.Fatalf("hookSpecificOutput = %+v; body=%s", response.HookSpecificOutput, recorder.Body.String())
+	}
+}
+
 func TestContractAuthenticationAndDuplicateJSONKeys(t *testing.T) {
 	server, token := newTestServer(t, testReader{}, nil)
-	unauthenticated := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp"}`)
+	unauthenticated := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"session_id":"s","hook_event_name":"SessionStart","cwd":"/tmp"}`)
 	unauthenticated.Header.Del("Authorization")
 	recorder := httptest.NewRecorder()
 	server.ServeHTTP(recorder, unauthenticated)
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", recorder.Code)
 	}
-	duplicate := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp","event_id":"other"}`)
+	duplicate := authenticatedRequest(http.MethodPost, SessionStartPath, token, `{"session_id":"s","hook_event_name":"SessionStart","cwd":"/tmp","session_id":"other"}`)
 	recorder = httptest.NewRecorder()
 	server.ServeHTTP(recorder, duplicate)
 	if recorder.Code != http.StatusBadRequest {
@@ -132,21 +157,29 @@ func TestContractAuthenticationAndDuplicateJSONKeys(t *testing.T) {
 	}
 }
 
+func TestAuthenticationFailureDoesNotEchoCredentialTransport(t *testing.T) {
+	server, token := newTestServer(t, testReader{}, nil)
+	canary := "HTTP_CREDENTIAL_CANARY_MUST_NOT_APPEAR"
+	request := authenticatedRequest(http.MethodGet, ReadinessPath+"?token="+canary, token, "")
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("credential transport status=%d", recorder.Code)
+	}
+	if strings.Contains(recorder.Body.String(), canary) {
+		t.Fatal("credential query value leaked into HTTP response")
+	}
+}
+
 func TestSessionStartRejectsOversizedFields(t *testing.T) {
 	server, token := newTestServer(t, testReader{}, nil)
-	body := `{"event_id":"` + strings.Repeat("e", 257) + `","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp"}`
+	body := `{"session_id":"` + strings.Repeat("s", 257) + `","hook_event_name":"SessionStart","cwd":"/tmp"}`
 	recorder := httptest.NewRecorder()
-	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
-	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("oversized event status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	body = `{"event_id":"e","session_id":"` + strings.Repeat("s", 257) + `","hook_name":"SessionStart","working_directory":"/tmp"}`
-	recorder = httptest.NewRecorder()
 	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("oversized session status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	body = `{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"` + strings.Repeat("/", 513) + `"}`
+	body = `{"session_id":"s","hook_event_name":"SessionStart","cwd":"` + strings.Repeat("/", 513) + `"}`
 	recorder = httptest.NewRecorder()
 	server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, SessionStartPath, token, body))
 	if recorder.Code != http.StatusBadRequest {
@@ -156,7 +189,7 @@ func TestSessionStartRejectsOversizedFields(t *testing.T) {
 
 func TestSessionStartRejectsInvalidUTF8(t *testing.T) {
 	server, token := newTestServer(t, testReader{}, nil)
-	body := []byte(`{"event_id":"e","session_id":"s","hook_name":"SessionStart","working_directory":"/tmp","transcript":"`)
+	body := []byte(`{"session_id":"s","hook_event_name":"SessionStart","cwd":"/tmp","transcript":"`)
 	body = append(body, 0xff)
 	body = append(body, []byte(`"}`)...)
 	request := authenticatedRequest(http.MethodPost, SessionStartPath, token, string(body))

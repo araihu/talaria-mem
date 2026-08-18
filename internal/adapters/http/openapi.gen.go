@@ -225,15 +225,30 @@ func (e ReadinessResponseVersion) Valid() bool {
 	}
 }
 
-// Defines values for SessionStartRequestHookName.
+// Defines values for SessionStartHookSpecificOutputHookEventName.
 const (
-	SessionStart SessionStartRequestHookName = "SessionStart"
+	SessionStartHookSpecificOutputHookEventNameSessionStart SessionStartHookSpecificOutputHookEventName = "SessionStart"
 )
 
-// Valid indicates whether the value is a known member of the SessionStartRequestHookName enum.
-func (e SessionStartRequestHookName) Valid() bool {
+// Valid indicates whether the value is a known member of the SessionStartHookSpecificOutputHookEventName enum.
+func (e SessionStartHookSpecificOutputHookEventName) Valid() bool {
 	switch e {
-	case SessionStart:
+	case SessionStartHookSpecificOutputHookEventNameSessionStart:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SessionStartRequestHookEventName.
+const (
+	SessionStartRequestHookEventNameSessionStart SessionStartRequestHookEventName = "SessionStart"
+)
+
+// Valid indicates whether the value is a known member of the SessionStartRequestHookEventName enum.
+func (e SessionStartRequestHookEventName) Valid() bool {
+	switch e {
+	case SessionStartRequestHookEventNameSessionStart:
 		return true
 	default:
 		return false
@@ -357,27 +372,36 @@ type ReadinessResponse struct {
 // ReadinessResponseVersion defines model for ReadinessResponse.Version.
 type ReadinessResponseVersion string
 
-// SessionStartRequest Raw Codex SessionStart event. Unknown fields are ignored and are never retained by the application.
-type SessionStartRequest struct {
-	EventId              string                      `json:"event_id"`
-	HookName             SessionStartRequestHookName `json:"hook_name"`
-	SessionId            string                      `json:"session_id"`
-	WorkingDirectory     string                      `json:"working_directory"`
-	AdditionalProperties map[string]interface{}      `json:"-"`
+// SessionStartHookSpecificOutput defines model for SessionStartHookSpecificOutput.
+type SessionStartHookSpecificOutput struct {
+	AdditionalContext string                                      `json:"additionalContext"`
+	HookEventName     SessionStartHookSpecificOutputHookEventName `json:"hookEventName"`
 }
 
-// SessionStartRequestHookName defines model for SessionStartRequest.HookName.
-type SessionStartRequestHookName string
+// SessionStartHookSpecificOutputHookEventName defines model for SessionStartHookSpecificOutput.HookEventName.
+type SessionStartHookSpecificOutputHookEventName string
+
+// SessionStartRequest Raw Codex SessionStart event. Unknown fields are ignored and are never retained by the application.
+type SessionStartRequest struct {
+	Cwd                  string                           `json:"cwd"`
+	HookEventName        SessionStartRequestHookEventName `json:"hook_event_name"`
+	SessionId            string                           `json:"session_id"`
+	AdditionalProperties map[string]interface{}           `json:"-"`
+}
+
+// SessionStartRequestHookEventName defines model for SessionStartRequest.HookEventName.
+type SessionStartRequestHookEventName string
 
 // SessionStartResponse defines model for SessionStartResponse.
 type SessionStartResponse struct {
-	Included    int                         `json:"included"`
-	Items       []MemoryItem                `json:"items"`
-	NextCursor  *string                     `json:"next_cursor,omitempty"`
-	Omitted     int                         `json:"omitted"`
-	Version     SessionStartResponseVersion `json:"version"`
-	Warning     *string                     `json:"warning,omitempty"`
-	WorkspaceId string                      `json:"workspace_id"`
+	HookSpecificOutput SessionStartHookSpecificOutput `json:"hookSpecificOutput"`
+	Included           int                            `json:"included"`
+	Items              []MemoryItem                   `json:"items"`
+	NextCursor         *string                        `json:"next_cursor,omitempty"`
+	Omitted            int                            `json:"omitted"`
+	Version            SessionStartResponseVersion    `json:"version"`
+	Warning            *string                        `json:"warning,omitempty"`
+	WorkspaceId        string                         `json:"workspace_id"`
 }
 
 // SessionStartResponseVersion defines model for SessionStartResponse.Version.
@@ -425,20 +449,20 @@ func (a *SessionStartRequest) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if raw, found := object["event_id"]; found {
-		err = json.Unmarshal(raw, &a.EventId)
+	if raw, found := object["cwd"]; found {
+		err = json.Unmarshal(raw, &a.Cwd)
 		if err != nil {
-			return fmt.Errorf("error reading 'event_id': %w", err)
+			return fmt.Errorf("error reading 'cwd': %w", err)
 		}
-		delete(object, "event_id")
+		delete(object, "cwd")
 	}
 
-	if raw, found := object["hook_name"]; found {
-		err = json.Unmarshal(raw, &a.HookName)
+	if raw, found := object["hook_event_name"]; found {
+		err = json.Unmarshal(raw, &a.HookEventName)
 		if err != nil {
-			return fmt.Errorf("error reading 'hook_name': %w", err)
+			return fmt.Errorf("error reading 'hook_event_name': %w", err)
 		}
-		delete(object, "hook_name")
+		delete(object, "hook_event_name")
 	}
 
 	if raw, found := object["session_id"]; found {
@@ -447,14 +471,6 @@ func (a *SessionStartRequest) UnmarshalJSON(b []byte) error {
 			return fmt.Errorf("error reading 'session_id': %w", err)
 		}
 		delete(object, "session_id")
-	}
-
-	if raw, found := object["working_directory"]; found {
-		err = json.Unmarshal(raw, &a.WorkingDirectory)
-		if err != nil {
-			return fmt.Errorf("error reading 'working_directory': %w", err)
-		}
-		delete(object, "working_directory")
 	}
 
 	if len(object) != 0 {
@@ -476,24 +492,19 @@ func (a SessionStartRequest) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
 
-	object["event_id"], err = json.Marshal(a.EventId)
+	object["cwd"], err = json.Marshal(a.Cwd)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'event_id': %w", err)
+		return nil, fmt.Errorf("error marshaling 'cwd': %w", err)
 	}
 
-	object["hook_name"], err = json.Marshal(a.HookName)
+	object["hook_event_name"], err = json.Marshal(a.HookEventName)
 	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'hook_name': %w", err)
+		return nil, fmt.Errorf("error marshaling 'hook_event_name': %w", err)
 	}
 
 	object["session_id"], err = json.Marshal(a.SessionId)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'session_id': %w", err)
-	}
-
-	object["working_directory"], err = json.Marshal(a.WorkingDirectory)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'working_directory': %w", err)
 	}
 
 	for fieldName, field := range a.AdditionalProperties {
@@ -510,33 +521,34 @@ func (a SessionStartRequest) MarshalJSON() ([]byte, error) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

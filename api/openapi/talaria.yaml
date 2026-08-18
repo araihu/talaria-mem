@@ -180,16 +180,15 @@ components:
       description: Raw Codex SessionStart event. Unknown fields are ignored and
         are never retained by the application.
       additionalProperties: true
-      required: [event_id, session_id, hook_name, working_directory]
+      required: [session_id, hook_event_name, cwd]
       properties:
-        event_id: { type: string, minLength: 1, maxLength: 256 }
         session_id: { type: string, minLength: 1, maxLength: 256 }
-        hook_name: { type: string, const: SessionStart }
-        working_directory: { type: string, minLength: 1, maxLength: 512 }
+        hook_event_name: { type: string, const: SessionStart }
+        cwd: { type: string, minLength: 1, maxLength: 512 }
     SessionStartResponse:
       type: object
       additionalProperties: false
-      required: [version, workspace_id, items, included, omitted]
+      required: [version, workspace_id, items, included, omitted, hookSpecificOutput]
       properties:
         version: { type: string, const: 'talaria.session-start.v1' }
         workspace_id: { type: string }
@@ -201,6 +200,14 @@ components:
         omitted: { type: integer, minimum: 0 }
         warning: { type: string }
         next_cursor: { type: string }
+        hookSpecificOutput: { $ref: '#/components/schemas/SessionStartHookSpecificOutput' }
+    SessionStartHookSpecificOutput:
+      type: object
+      additionalProperties: false
+      required: [hookEventName, additionalContext]
+      properties:
+        hookEventName: { type: string, const: SessionStart }
+        additionalContext: { type: string, minLength: 1 }
     MemorySearchRequest:
       type: object
       additionalProperties: false

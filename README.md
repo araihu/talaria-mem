@@ -14,36 +14,57 @@ Licensed under the [MIT License](LICENSE).
 - `curl` if the SessionStart hook will be used.
 - macOS or Linux for the documented local journey. Other platforms are not
   verified yet.
+- An existing owner-controlled `$HOME/.codex` directory without group/world
+  write bits for automatic hook registration; use `--codex-hooks` for another
+  JSON registry.
 - Put `$HOME/.local/bin` on `PATH` if the binary is installed there.
 
 ## First local installation
+
+For a complete copy-paste runbook, Codex hook/MCP registration, service
+templates, and the documentation gaps found during a local deployment, see
+[docs/LOCAL_DEPLOYMENT.md](docs/LOCAL_DEPLOYMENT.md). The active implementation
+list is [docs/TASKS.md](docs/TASKS.md).
 
 Build outside the source tree and inspect the machine-readable setup plan:
 
 ```sh
 mkdir -p "$HOME/.local/bin"
 go build -o "$HOME/.local/bin/talaria-mem" ./cmd/talaria-mem
+export PATH="$HOME/.local/bin:$PATH"
 talaria-mem setup codex --dry-run --json
-talaria-mem setup codex --apply
+talaria-mem setup codex --apply --json
 ```
 
 The default private root is `$HOME/.talaria-mem`, containing `state/`,
 `config/`, and `backups/`, all owner-only. First-install setup creates only
 those managed directories during a dry-run; it does not create credentials,
 configuration, or the hook. Apply creates the root key, bearer token, managed
-setup metadata, and an executable SessionStart hook at
-`$HOME/.talaria-mem/config/session-start.sh`. Re-running apply is idempotent.
-Removal requires the recorded fingerprint and preserves unrelated files.
+setup metadata, an executable SessionStart hook at
+`$HOME/.talaria-mem/config/session-start.sh`, and one managed group in
+`$HOME/.codex/hooks.json`. Re-running apply is idempotent and preserves other
+Codex hooks. The `.codex` directory must already exist; use
+`--codex-hooks /absolute/path/hooks.json` for another JSON registry. Removal
+requires the recorded fingerprint and preserves unrelated files:
 
-The hook is an artifact for host configuration; setup does not start a daemon,
-install a LaunchAgent/systemd unit, or modify an official Codex configuration
-file. Start the daemon explicitly in a second terminal and register the hook
-with the host's SessionStart configuration when you are ready to use it.
+```sh
+fingerprint='paste-the-64-character-fingerprint-from-dry-run-here'
+talaria-mem setup codex --remove \
+  --fingerprint "$fingerprint" \
+  --apply --json
+```
 
-For acceptance tests, `TALARIA_STATE_DIR`, `TALARIA_CONFIG_DIR`, and
-`TALARIA_BACKUP_DIR` may point at absolute canonical managed directories.
+The hook registration is limited to the official JSON hook registry. Setup does
+not start a daemon or install a LaunchAgent/systemd unit. Start the daemon
+explicitly in a second terminal. Never print or commit `root.key` or `token`.
+
+For isolated runs, either leave all three path variables unset to use the
+default root, or set `TALARIA_STATE_DIR`, `TALARIA_CONFIG_DIR`, and
+`TALARIA_BACKUP_DIR` together to absolute canonical managed directories.
 Normal commands require those directories to already exist, be owner-owned,
-mode `0700`, and not be symlinks.
+mode `0700`, and not be symlinks. See the [local deployment
+runbook](docs/LOCAL_DEPLOYMENT.md) and the [generated environment
+contract](internal/lifecycle/environment.md).
 
 ## Daily use
 
@@ -82,11 +103,13 @@ scanner uncertainty fail closed and do not return memory content.
 
 ## SessionStart and local interfaces
 
-The hook forwards the raw Codex event fields (`event_id`, `session_id`,
-`hook_name`, and `working_directory`) to the authenticated loopback daemon. The
-daemon resolves the workspace from the persisted binding and selects only
-active, verified, non-quarantined memories. It never reads, stores, or logs a
-transcript.
+The hook accepts the official Codex `SessionStart` event (`session_id`, `cwd`,
+and `hook_event_name`), accepts an optional `transcript_path` without opening
+it, and forwards only the bounded fields needed to the authenticated loopback
+daemon. Its response includes Codex's
+`hookSpecificOutput.additionalContext` shape. The daemon resolves the
+workspace from the persisted binding and selects only active, verified,
+non-quarantined memories. It never reads, stores, or logs a transcript.
 
 MCP and control routes require a bearer token and literal loopback access.
 `/healthz` is the unauthenticated liveness endpoint; `/readyz` and control
@@ -104,9 +127,9 @@ talaria-mem doctor --repair=fts --dry-run
 ```
 
 `memory forget` is an explicit expected-revision mutation, not a global-lock
-maintenance receipt. Database restore and scanner-rule upgrade libraries exist
-but are not yet wired into the CLI; they are tracked in
-[IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
+maintenance receipt. Cobra exposes help for database restore and scanner-rule
+upgrade, but those runtime operations still fail closed as unavailable; they
+are tracked in [IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
 ## Verification
 

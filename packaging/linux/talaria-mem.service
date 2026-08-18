@@ -4,7 +4,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart={{TALARIA_BINARY}} daemon
+ExecStart={{TALARIA_BINARY}} daemon --address {{TALARIA_ADDRESS}}
 Restart=on-failure
 NoNewPrivileges=true
 

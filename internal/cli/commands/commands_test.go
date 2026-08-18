@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/guilhermecastro/talaria-mem/internal/cli"
+	"github.com/guilhermecastro/talaria-mem/internal/lifecycle"
 	"github.com/guilhermecastro/talaria-mem/internal/maintenance"
 )
 
@@ -63,5 +64,61 @@ func TestMaintenanceCommandsRegisterExplicitly(t *testing.T) {
 	}
 	if got := registry.Names(); len(got) != 2 || got[0] != "db" || got[1] != "scanner" {
 		t.Fatalf("registered names=%v", got)
+	}
+}
+
+type daemonCommandFixture struct{ calls int }
+
+func (fixture *daemonCommandFixture) Run(context.Context) error {
+	fixture.calls++
+	return nil
+}
+
+func TestRegisteredCommandUsesCobraFlags(t *testing.T) {
+	fixture := &daemonCommandFixture{}
+	registry := cli.NewRegistry()
+	if err := RegisterDaemon(registry, NewDaemonCommands(fixture)); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(cli.RootConfig{Registry: registry, Stdout: &stdout, Stderr: &stderr})
+	if code := root.Execute(context.Background(), []string{"daemon", "--foreground", "--json"}); code != cli.ExitSuccess {
+		t.Fatalf("daemon exit=%d stderr=%q", code, stderr.String())
+	}
+	if fixture.calls != 1 || !strings.Contains(stdout.String(), `"status":"stopped"`) {
+		t.Fatalf("calls=%d stdout=%q", fixture.calls, stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr=%q", stderr.String())
+	}
+}
+
+type setupCommandFixture struct {
+	request lifecycle.SetupRequest
+}
+
+func (fixture *setupCommandFixture) Plan(_ context.Context, request lifecycle.SetupRequest) (lifecycle.SetupResult, error) {
+	fixture.request = request
+	return lifecycle.SetupResult{Version: "test"}, nil
+}
+
+func (fixture *setupCommandFixture) Apply(_ context.Context, request lifecycle.SetupRequest) (lifecycle.SetupResult, error) {
+	fixture.request = request
+	return lifecycle.SetupResult{Version: "test"}, nil
+}
+
+func TestSetupCobraForwardsCodexHooksPath(t *testing.T) {
+	fixture := &setupCommandFixture{}
+	registry := cli.NewRegistry()
+	if err := RegisterSetup(registry, NewSetupCommands(fixture, lifecycle.SetupRequest{})); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRoot(cli.RootConfig{Registry: registry, Stdout: &stdout, Stderr: &stderr})
+	if code := root.Execute(context.Background(), []string{"setup", "codex", "--dry-run", "--codex-hooks", "/tmp/codex/hooks.json"}); code != cli.ExitSuccess {
+		t.Fatalf("setup exit=%d stderr=%q", code, stderr.String())
+	}
+	if fixture.request.CodexHooksPath != "/tmp/codex/hooks.json" {
+		t.Fatalf("codex hooks path=%q", fixture.request.CodexHooksPath)
 	}
 }

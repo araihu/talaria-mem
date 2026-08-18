@@ -38,48 +38,12 @@ if [ -z "$token" ]; then
   exit 1
 fi
 
-response_file=$(mktemp "${TMPDIR:-/tmp}/talaria-mem-session-start.XXXXXX") || {
-  printf '%s\n' 'Talaria-Mem could not create a temporary hook response file.' >&2
-  exit 1
-}
-cleanup() {
-  rm -f "$response_file"
-}
-trap cleanup 0 1 2 3 15
-
-if ! status=$(curl --silent --show-error --noproxy '*' \
+if ! curl --silent --show-error --fail --noproxy '*' \
   --connect-timeout 1 --max-time 5 --request POST \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
   --header "Authorization: Bearer $token" \
-  --data-binary @- --output "$response_file" \
-  --write-out '%{http_code}' "$endpoint/control/v1/session-start"); then
+  --data-binary @- "$endpoint/control/v1/session-start"; then
   printf '%s\n' 'Talaria-Mem daemon unavailable; start talaria-mem daemon and retry SessionStart.' >&2
   exit 1
 fi
-
-case "$status" in
-  2??)
-    cat "$response_file"
-    ;;
-  400)
-    printf '%s\n' 'Talaria-Mem rejected the Codex SessionStart payload; check the hook and daemon versions.' >&2
-    exit 1
-    ;;
-  401|403)
-    printf '%s\n' 'Talaria-Mem SessionStart authentication failed; rerun setup and review the token file permissions.' >&2
-    exit 1
-    ;;
-  404)
-    printf '%s\n' 'Talaria-Mem has no workspace binding for the Codex cwd; bind that path before SessionStart.' >&2
-    exit 1
-    ;;
-  5??)
-    printf 'Talaria-Mem daemon returned HTTP %s; inspect talaria-mem doctor.\n' "$status" >&2
-    exit 1
-    ;;
-  *)
-    printf 'Talaria-Mem daemon returned unexpected HTTP %s.\n' "$status" >&2
-    exit 1
-    ;;
-esac

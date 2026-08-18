@@ -23,7 +23,6 @@ const (
 	ReadinessVersion     = "talaria.ready.v1"
 	SessionStartVersion  = "talaria.session-start.v1"
 	SearchVersion        = "talaria.memory-search.v1"
-	maxSessionEventBytes = 256
 	maxSessionIDBytes    = 256
 	maxWorkingDirBytes   = 512
 )
@@ -194,11 +193,11 @@ func (server *Server) handleSessionStart(writer http.ResponseWriter, request *ht
 		writeError(writer, err)
 		return
 	}
-	if input.EventId == "" || input.SessionId == "" || input.WorkingDirectory == "" || !input.HookName.Valid() {
-		writeError(writer, domain.NewError(domain.CodeValidation, "event, session, hook, and working directory are required", false))
+	if input.SessionId == "" || input.Cwd == "" || !input.HookEventName.Valid() {
+		writeError(writer, domain.NewError(domain.CodeValidation, "session, hook, and working directory are required", false))
 		return
 	}
-	if !validSessionStartString(input.EventId, maxSessionEventBytes) || !validSessionStartString(input.SessionId, maxSessionIDBytes) || !validSessionStartString(input.WorkingDirectory, maxWorkingDirBytes) {
+	if !validSessionStartString(input.SessionId, maxSessionIDBytes) || !validSessionStartString(input.Cwd, maxWorkingDirBytes) {
 		writeError(writer, domain.NewError(domain.CodeValidation, "session start field is invalid or oversized", false))
 		return
 	}
@@ -216,7 +215,45 @@ func (server *Server) handleSessionStart(writer http.ResponseWriter, request *ht
 			return
 		}
 	}
+	additionalContext, err := sessionStartAdditionalContext(result)
+	if err != nil {
+		writeError(writer, err)
+		return
+	}
+	result.HookSpecificOutput = SessionStartHookSpecificOutput{
+		HookEventName:     SessionStartHookSpecificOutputHookEventNameSessionStart,
+		AdditionalContext: additionalContext,
+	}
 	writeJSON(writer, http.StatusOK, result)
+}
+
+// sessionStartAdditionalContext keeps the transport response useful to
+// programmatic clients while supplying the official Codex hook field. The
+// hook receives this bounded JSON snapshot as text; it never receives the raw
+// request or transcript fields.
+func sessionStartAdditionalContext(response SessionStartResponse) (string, error) {
+	payload := struct {
+		Version     SessionStartResponseVersion `json:"version"`
+		WorkspaceID string                      `json:"workspace_id"`
+		Items       []MemoryItem                `json:"items"`
+		Included    int                         `json:"included"`
+		Omitted     int                         `json:"omitted"`
+		Warning     *string                     `json:"warning,omitempty"`
+		NextCursor  *string                     `json:"next_cursor,omitempty"`
+	}{
+		Version:     response.Version,
+		WorkspaceID: response.WorkspaceId,
+		Items:       response.Items,
+		Included:    response.Included,
+		Omitted:     response.Omitted,
+		Warning:     response.Warning,
+		NextCursor:  response.NextCursor,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "", domain.NewError(domain.CodeUnavailable, "hook context unavailable", true)
+	}
+	return string(encoded), nil
 }
 
 func validSessionStartString(value string, maxBytes int) bool {

@@ -23,12 +23,13 @@ const (
 
 // Request is the deliberately narrow SessionStart input. Codex may include
 // transcript or other future fields in the event; DecodeRequest discards them
-// before this value reaches application code.
+// before this value reaches application code. The JSON names match the
+// official Codex hook payload; WorkingDirectory is the internal name used by
+// workspace binding.
 type Request struct {
-	EventID          string `json:"event_id"`
 	SessionID        string `json:"session_id"`
-	HookName         string `json:"hook_name"`
-	WorkingDirectory string `json:"working_directory"`
+	HookName         string `json:"hook_event_name"`
+	WorkingDirectory string `json:"cwd"`
 }
 
 type SessionStartRequest = Request
@@ -39,7 +40,7 @@ func ParseRequest(data []byte) (Request, error) {
 	return DecodeRequest(bytes.NewReader(data))
 }
 
-// DecodeRequest accepts only the four SessionStart fields. It rejects
+// DecodeRequest accepts only the three required SessionStart fields. It rejects
 // duplicate keys, malformed/trailing JSON, oversized input, and invalid
 // scalar values. Unknown values are skipped token-by-token, so a transcript
 // path or transcript body cannot be opened, logged, persisted, or exposed by
@@ -61,7 +62,7 @@ func DecodeRequest(reader io.Reader) (Request, error) {
 	}
 
 	var request Request
-	seen := make(map[string]struct{}, 4)
+	seen := make(map[string]struct{}, 3)
 	for decoder.More() {
 		keyToken, err := decoder.Token()
 		if err != nil {
@@ -77,19 +78,15 @@ func DecodeRequest(reader io.Reader) (Request, error) {
 		seen[key] = struct{}{}
 
 		switch key {
-		case "event_id":
-			if err := decodeString(decoder, &request.EventID); err != nil {
-				return Request{}, err
-			}
 		case "session_id":
 			if err := decodeString(decoder, &request.SessionID); err != nil {
 				return Request{}, err
 			}
-		case "hook_name":
+		case "hook_event_name":
 			if err := decodeString(decoder, &request.HookName); err != nil {
 				return Request{}, err
 			}
-		case "working_directory":
+		case "cwd":
 			if err := decodeString(decoder, &request.WorkingDirectory); err != nil {
 				return Request{}, err
 			}
@@ -178,8 +175,8 @@ func skipValue(decoder *json.Decoder) error {
 }
 
 func validateRequest(request Request) error {
-	if request.EventID == "" || request.SessionID == "" || request.HookName == "" || request.WorkingDirectory == "" {
-		return domain.NewError(domain.CodeValidation, "event, session, hook, and working directory are required", false)
+	if request.SessionID == "" || request.HookName == "" || request.WorkingDirectory == "" {
+		return domain.NewError(domain.CodeValidation, "session, hook, and working directory are required", false)
 	}
 	if request.HookName != HookName {
 		return domain.NewError(domain.CodeValidation, "unsupported hook", false)

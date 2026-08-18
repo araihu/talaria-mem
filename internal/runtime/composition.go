@@ -32,11 +32,40 @@ import (
 const DefaultAddress = "127.0.0.1:7437"
 
 type Config struct {
-	Environment lifecycle.Environment
-	Address     string
-	Stdout      io.Writer
-	Stderr      io.Writer
-	BinaryPath  string
+	Environment    lifecycle.Environment
+	Address        string
+	Stdout         io.Writer
+	Stderr         io.Writer
+	BinaryPath     string
+	CodexHooksPath string
+}
+
+// RunHelp builds the same Cobra command tree as the runtime without opening
+// directories, credentials, SQLite, listeners, or background workers.
+func RunHelp(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	registry := cli.NewRegistry()
+	if err := commands.RegisterDB(registry, commands.NewDBCommands(nil, nil)); err != nil {
+		return err
+	}
+	if err := commands.RegisterDaemon(registry, commands.NewDaemonCommands(nil)); err != nil {
+		return err
+	}
+	if err := commands.RegisterDoctor(registry, commands.NewDoctorCommands(nil)); err != nil {
+		return err
+	}
+	if err := commands.RegisterSetup(registry, commands.NewSetupCommands(nil, lifecycle.SetupRequest{})); err != nil {
+		return err
+	}
+	if err := commands.RegisterStatus(registry, commands.NewStatusCommands(nil)); err != nil {
+		return err
+	}
+	if err := commands.RegisterToken(registry, commands.NewTokenCommands(nil)); err != nil {
+		return err
+	}
+	if err := commands.RegisterScanner(registry, &commands.ScannerCommands{}); err != nil {
+		return err
+	}
+	return cli.NewRoot(cli.RootConfig{Registry: registry, Stdout: stdout, Stderr: stderr}).Run(ctx, args)
 }
 
 type Composition struct {
@@ -215,11 +244,11 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 		WALPath:      databasePath + "-wal",
 		SHMPath:      databasePath + "-shm",
 	})
-	setupRequest := lifecycle.SetupRequest{ConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"), HookPath: filepath.Join(environment.ConfigDir, "session-start.sh"), TokenPath: tokenPath, BinaryPath: configuration.BinaryPath, Endpoint: address}
+	setupRequest := lifecycle.SetupRequest{ConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"), HookPath: filepath.Join(environment.ConfigDir, "session-start.sh"), CodexHooksPath: resolveCodexHooksPath(configuration.CodexHooksPath, environment), TokenPath: tokenPath, BinaryPath: configuration.BinaryPath, Endpoint: address}
 	if setupRequest.BinaryPath == "" {
 		setupRequest.BinaryPath, _ = os.Executable()
 	}
-	setup := lifecycle.NewSetupService(lifecycle.NewCodexHookInstaller())
+	setup := lifecycle.NewSetupService(lifecycle.NewCodexInstaller())
 	registry := cli.NewRegistry()
 	_ = commands.RegisterDB(registry, commands.NewDBCommands(commands.NewBackupCommands(backup), nil))
 	_ = commands.RegisterDaemon(registry, commands.NewDaemonCommands(daemon))
@@ -236,7 +265,8 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 
 // RunSetup composes only the first-install command graph. It deliberately
 // avoids opening SQLite, creating a root key, or creating a bearer token for a
-// dry-run. Apply creates installation credentials before writing the hook.
+// dry-run. Apply creates installation credentials before writing the hook or
+// registering it with Codex.
 func RunSetup(ctx context.Context, args []string, configuration Config) error {
 	environment, err := resolveEnvironmentForSetup(configuration.Environment)
 	if err != nil {
@@ -256,11 +286,12 @@ func RunSetup(ctx context.Context, args []string, configuration Config) error {
 		binaryPath, _ = os.Executable()
 	}
 	request := lifecycle.SetupRequest{
-		ConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"),
-		HookPath:   filepath.Join(environment.ConfigDir, "session-start.sh"),
-		TokenPath:  filepath.Join(environment.ConfigDir, "token"),
-		BinaryPath: binaryPath,
-		Endpoint:   configuration.Address,
+		ConfigPath:     filepath.Join(environment.ConfigDir, "codex.toml"),
+		HookPath:       filepath.Join(environment.ConfigDir, "session-start.sh"),
+		CodexHooksPath: resolveCodexHooksPath(configuration.CodexHooksPath, environment),
+		TokenPath:      filepath.Join(environment.ConfigDir, "token"),
+		BinaryPath:     binaryPath,
+		Endpoint:       configuration.Address,
 	}
 	if request.Endpoint == "" {
 		request.Endpoint = DefaultAddress
@@ -270,13 +301,30 @@ func RunSetup(ctx context.Context, args []string, configuration Config) error {
 			return err
 		}
 	}
-	setup := lifecycle.NewSetupService(lifecycle.NewCodexHookInstaller())
+	setup := lifecycle.NewSetupService(lifecycle.NewCodexInstaller())
 	registry := cli.NewRegistry()
 	if err := commands.RegisterSetup(registry, commands.NewSetupCommands(setup, request)); err != nil {
 		return err
 	}
 	root := cli.NewRoot(cli.RootConfig{Registry: registry, Stdout: configuration.Stdout, Stderr: configuration.Stderr})
 	return root.Run(ctx, args)
+}
+
+func resolveCodexHooksPath(override string, environment lifecycle.Environment) string {
+	if override != "" {
+		return override
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	defaultEnvironment, err := lifecycle.DefaultEnvironment(home)
+	if err != nil || filepath.Clean(defaultEnvironment.ConfigDir) != filepath.Clean(environment.ConfigDir) {
+		// Isolated setup fixtures must opt in explicitly. This prevents tests and
+		// alternate roots from mutating the operator's real Codex configuration.
+		return ""
+	}
+	return filepath.Join(home, ".codex", "hooks.json")
 }
 
 func (composition *Composition) Run(ctx context.Context, args []string) error {
@@ -399,7 +447,7 @@ func (starter httpSessionStarter) SessionStart(ctx context.Context, request http
 	if starter.service == nil {
 		return httpadapter.SessionStartResponse{}, errors.New("session start unavailable")
 	}
-	response, err := starter.service.SessionStart(ctx, codex.Request{EventID: request.EventId, SessionID: request.SessionId, HookName: string(request.HookName), WorkingDirectory: request.WorkingDirectory})
+	response, err := starter.service.SessionStart(ctx, codex.Request{SessionID: request.SessionId, HookName: string(request.HookEventName), WorkingDirectory: request.Cwd})
 	if err != nil {
 		return httpadapter.SessionStartResponse{}, err
 	}

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"sync"
+
+	"github.com/spf13/cobra"
 )
 
 // Handler is the stable registration boundary for commands owned by T12-T14.
@@ -12,10 +14,21 @@ import (
 // intentionally not supported.
 type Handler func(context.Context, []string, Output) error
 
+// CobraContext is the boundary between the command registry and the Cobra
+// tree. Builders own flag definitions and positional validation; Run remains
+// the small application-layer adapter used by tests and composition.
+type CobraContext struct {
+	Run    Handler
+	Output func(*cobra.Command) Output
+}
+
+type CobraBuilder func(CobraContext) *cobra.Command
+
 type Command struct {
 	Name        string
 	Description string
 	Run         Handler
+	Build       CobraBuilder
 }
 
 type Registry struct {

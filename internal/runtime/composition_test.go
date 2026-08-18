@@ -107,7 +107,7 @@ func TestCompositionSessionStartListsBoundVerifiedMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := httptest.NewRequest(http.MethodPost, "http://"+composition.Address+"/control/v1/session-start", strings.NewReader(`{"event_id":"event-1","session_id":"session-1","hook_name":"SessionStart","working_directory":"`+workingDirectory+`"}`))
+	request := httptest.NewRequest(http.MethodPost, "http://"+composition.Address+"/control/v1/session-start", strings.NewReader(`{"session_id":"session-1","hook_event_name":"SessionStart","cwd":"`+workingDirectory+`"}`))
 	request.RemoteAddr = "127.0.0.1:12345"
 	request.Host = composition.Address
 	request.Header.Set("Authorization", "Bearer "+token)
@@ -184,9 +184,14 @@ func TestRunSetupApplyInstallsHookAndCredentials(t *testing.T) {
 	if err := os.Chmod(root, lifecycle.ManagedDirectoryMode.Perm()); err != nil {
 		t.Fatal(err)
 	}
+	codexDirectory := filepath.Join(root, "codex")
+	if err := os.Mkdir(codexDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	environment := lifecycle.Environment{StateDir: filepath.Join(root, "state"), ConfigDir: filepath.Join(root, "config"), BackupDir: filepath.Join(root, "state", "backups")}
 	var stdout bytes.Buffer
-	if err := RunSetup(context.Background(), []string{"setup", "codex", "--apply"}, Config{Environment: environment, BinaryPath: "/tmp/talaria-mem", Stdout: &stdout, Stderr: &stdout}); err != nil {
+	configuration := Config{Environment: environment, BinaryPath: "/tmp/talaria-mem", CodexHooksPath: filepath.Join(codexDirectory, "hooks.json"), Stdout: &stdout, Stderr: &stdout}
+	if err := RunSetup(context.Background(), []string{"setup", "codex", "--apply"}, configuration); err != nil {
 		t.Fatal(err)
 	}
 	hook := filepath.Join(environment.ConfigDir, "session-start.sh")
@@ -201,6 +206,13 @@ func TestRunSetupApplyInstallsHookAndCredentials(t *testing.T) {
 		if _, err := os.Lstat(path); err != nil {
 			t.Fatalf("credential %s: %v", path, err)
 		}
+	}
+	hooks, err := os.ReadFile(configuration.CodexHooksPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(hooks), "session-start.sh") || !strings.Contains(string(hooks), "SessionStart") {
+		t.Fatal("Codex SessionStart registration missing")
 	}
 }
 

@@ -27,14 +27,15 @@ const (
 )
 
 type SetupRequest struct {
-	ConfigPath  string
-	HookPath    string
-	TokenPath   string
-	BinaryPath  string
-	Endpoint    string
-	DryRun      bool
-	Remove      bool
-	Fingerprint string
+	ConfigPath     string
+	HookPath       string
+	CodexHooksPath string
+	TokenPath      string
+	BinaryPath     string
+	Endpoint       string
+	DryRun         bool
+	Remove         bool
+	Fingerprint    string
 }
 
 type SetupChange struct {
@@ -58,6 +59,14 @@ type SetupResult struct {
 type ServiceInstaller interface {
 	Install(context.Context, SetupRequest, string) error
 	Remove(context.Context, SetupRequest, string) error
+}
+
+// ServiceInstallerPlanner lets an installer expose safe, content-free
+// changes during setup --dry-run without widening ServiceInstaller's
+// compatibility contract. Paths and fingerprints are the only receipt data;
+// installer configuration bytes never enter SetupResult.
+type ServiceInstallerPlanner interface {
+	Plan(context.Context, SetupRequest, string, bool) ([]SetupChange, error)
 }
 
 type SetupService struct {
@@ -98,6 +107,9 @@ func (service *SetupService) Plan(ctx context.Context, request SetupRequest) (Se
 		return SetupResult{}, err
 	}
 	if request.Fingerprint != "" {
+		if !validSetupFingerprint(request.Fingerprint) {
+			return SetupResult{}, ErrSetupReceipt
+		}
 		if request.Fingerprint != fingerprint && !request.Remove {
 			return SetupResult{}, ErrSetupCollision
 		}
@@ -110,31 +122,38 @@ func (service *SetupService) Plan(ctx context.Context, request SetupRequest) (Se
 	markerFingerprint, markerStart, markerEnd := findSetupMarker(current)
 	result := SetupResult{Version: "talaria.setup.v1", DryRun: request.DryRun, Fingerprint: fingerprint, Changes: []SetupChange{}}
 	if request.Remove {
-		if markerFingerprint == "" {
-			return result, nil
-		}
-		if request.Fingerprint == "" || request.Fingerprint != markerFingerprint {
+		if markerFingerprint != "" && (request.Fingerprint == "" || request.Fingerprint != markerFingerprint) {
 			return SetupResult{}, ErrSetupReceipt
 		}
-		result.Removed = true
-		result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "remove", Fingerprint: markerFingerprint})
-		if !exists {
-			result.Changes = nil
+		if markerFingerprint != "" {
+			result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "remove", Fingerprint: markerFingerprint})
+			if !exists {
+				result.Changes = nil
+			}
 		}
-		return result, nil
-	}
-	if markerFingerprint != "" && markerFingerprint != fingerprint {
-		return SetupResult{}, ErrSetupCollision
-	}
-	marker := setupMarker(request, fingerprint)
-	if markerStart >= 0 && markerEnd > markerStart {
-		// The same installation is idempotent.  A changed request necessarily
-		// changes the fingerprint and was rejected above.
-		if string(current[markerStart:markerEnd]) == marker {
-			return result, nil
+	} else {
+		if markerFingerprint != "" && markerFingerprint != fingerprint {
+			return SetupResult{}, ErrSetupCollision
+		}
+		marker := setupMarker(request, fingerprint)
+		if markerStart >= 0 && markerEnd > markerStart {
+			// The same installation is idempotent. A changed request necessarily
+			// changes the fingerprint and was rejected above.
+			if string(current[markerStart:markerEnd]) != marker {
+				result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "install", Fingerprint: fingerprint})
+			}
+		} else {
+			result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "install", Fingerprint: fingerprint})
 		}
 	}
-	result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "install", Fingerprint: fingerprint})
+	if planner, ok := service.Installer.(ServiceInstallerPlanner); ok {
+		changes, err := planner.Plan(ctx, request, fingerprint, request.Remove)
+		if err != nil {
+			return SetupResult{}, err
+		}
+		result.Changes = append(result.Changes, changes...)
+	}
+	result.Removed = request.Remove && len(result.Changes) > 0
 	return result, nil
 }
 
@@ -148,45 +167,61 @@ func (service *SetupService) Apply(ctx context.Context, request SetupRequest) (S
 		return SetupResult{}, err
 	}
 	if len(plan.Changes) == 0 {
-		if service.Installer != nil && !request.Remove {
-			if err := service.Installer.Install(ctx, request, plan.Fingerprint); err != nil {
-				return SetupResult{}, err
+		if service.Installer != nil {
+			var installerErr error
+			if request.Remove {
+				installerErr = service.Installer.Remove(ctx, request, plan.Fingerprint)
+			} else {
+				installerErr = service.Installer.Install(ctx, request, plan.Fingerprint)
+			}
+			if installerErr != nil {
+				return SetupResult{}, installerErr
 			}
 		}
 		return plan, nil
 	}
-	current, exists, err := readConfig(request.ConfigPath)
-	if err != nil {
-		return SetupResult{}, err
-	}
-	oldFingerprint, err := configFingerprint(request.ConfigPath, exists)
-	if err != nil {
-		return SetupResult{}, err
-	}
-	backupPath := request.ConfigPath + ".talaria-mem-" + plan.Fingerprint[:12] + ".bak"
-	if exists {
-		if err := writeNewManagedFile(ctx, backupPath, current); err != nil && !errors.Is(err, filesystem.ErrTargetExists) {
+	configChangeIndex := setupConfigChangeIndex(plan.Changes, request.ConfigPath)
+	configChanged := configChangeIndex >= 0
+	var current []byte
+	var exists bool
+	var oldFingerprint *filesystemFingerprint
+	var backupPath string
+	if configChanged {
+		current, exists, err = readConfig(request.ConfigPath)
+		if err != nil {
 			return SetupResult{}, err
+		}
+		oldFingerprint, err = configFingerprint(request.ConfigPath, exists)
+		if err != nil {
+			return SetupResult{}, err
+		}
+		backupPath = request.ConfigPath + ".talaria-mem-" + plan.Fingerprint[:12] + ".bak"
+		if exists {
+			if err := writeNewManagedFile(ctx, backupPath, current); err != nil && !errors.Is(err, filesystem.ErrTargetExists) {
+				return SetupResult{}, err
+			}
 		}
 	}
 
-	updated := current
-	if request.Remove {
-		_, start, end := findSetupMarker(current)
-		if start < 0 || end <= start {
-			return plan, nil
+	if configChanged {
+		updated := current
+		if request.Remove {
+			_, start, end := findSetupMarker(current)
+			if start < 0 || end <= start {
+				return SetupResult{}, ErrSetupReceipt
+			}
+			updated = append([]byte(nil), current[:start]...)
+			updated = append(updated, current[end:]...)
+		} else {
+			marker := []byte(setupMarker(request, plan.Fingerprint))
+			if len(updated) > 0 && updated[len(updated)-1] != '\n' {
+				updated = append(updated, '\n')
+			}
+			updated = append(updated, marker...)
 		}
-		updated = append([]byte(nil), current[:start]...)
-		updated = append(updated, current[end:]...)
-	} else {
-		marker := []byte(setupMarker(request, plan.Fingerprint))
-		if len(updated) > 0 && updated[len(updated)-1] != '\n' {
-			updated = append(updated, '\n')
+		if err := replaceManagedFile(ctx, request.ConfigPath, updated, oldFingerprint, exists); err != nil {
+			return SetupResult{}, err
 		}
-		updated = append(updated, marker...)
-	}
-	if err := replaceManagedFile(ctx, request.ConfigPath, updated, oldFingerprint, exists); err != nil {
-		return SetupResult{}, err
 	}
 	if service.Installer != nil {
 		var installerErr error
@@ -196,12 +231,33 @@ func (service *SetupService) Apply(ctx context.Context, request SetupRequest) (S
 			installerErr = service.Installer.Install(ctx, request, plan.Fingerprint)
 		}
 		if installerErr != nil {
-			_ = rollbackManagedFile(ctx, request.ConfigPath, current, exists)
+			if configChanged {
+				_ = rollbackManagedFile(ctx, request.ConfigPath, current, exists)
+			}
 			return SetupResult{}, installerErr
 		}
 	}
-	plan.Changes[0].BackupPath = backupPath
+	if configChanged {
+		plan.Changes[configChangeIndex].BackupPath = backupPath
+	}
 	return plan, nil
+}
+
+func setupConfigChangeIndex(changes []SetupChange, path string) int {
+	for index, change := range changes {
+		if change.Path == path && (change.Action == "install" || change.Action == "remove") {
+			return index
+		}
+	}
+	return -1
+}
+
+func validSetupFingerprint(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func contextError(ctx context.Context) error {

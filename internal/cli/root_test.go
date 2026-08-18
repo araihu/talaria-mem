@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -28,10 +29,16 @@ func TestCLIContractMachineJSONAndHelp(t *testing.T) {
 func TestCLIContractCobraRegistrationBoundary(t *testing.T) {
 	root := NewRoot(RootConfig{})
 	command := root.CobraCommand()
+	if command.DisableFlagParsing {
+		t.Fatal("root command must let Cobra parse flags")
+	}
 	for _, name := range []string{"memory", "workspace", "projection"} {
 		found := false
 		for _, child := range command.Commands() {
 			if child.Name() == name {
+				if child.DisableFlagParsing {
+					t.Fatalf("cobra command %q disables flag parsing", name)
+				}
 				found = true
 				break
 			}
@@ -39,6 +46,27 @@ func TestCLIContractCobraRegistrationBoundary(t *testing.T) {
 		if !found {
 			t.Fatalf("cobra command %q not registered", name)
 		}
+	}
+}
+
+func TestCLIContractUsesCobraHelpAndRejectsUnknownFlags(t *testing.T) {
+	root := NewRoot(RootConfig{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
+	command := root.CobraCommand()
+	var help bytes.Buffer
+	command.SetOut(&help)
+	command.SetErr(&help)
+	command.SetArgs([]string{"--help"})
+	if err := command.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(help.String(), "Usage:") || !strings.Contains(help.String(), "--json") {
+		t.Fatalf("Cobra help=%q", help.String())
+	}
+	if code := root.Execute(context.Background(), []string{"workspace", "list", "--not-a-real-flag"}); code != ExitUsage {
+		t.Fatalf("unknown flag exit=%d", code)
+	}
+	if code := root.Execute(context.Background(), []string{"memory", "list", "--limit", "not-a-number"}); code != ExitUsage {
+		t.Fatalf("invalid typed flag exit=%d", code)
 	}
 }
 

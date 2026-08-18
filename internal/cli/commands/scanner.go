@@ -117,5 +117,5 @@ func RegisterScanner(registry *cli.Registry, commands *ScannerCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "scanner command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "scanner", Description: "scanner rule maintenance", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "scanner", Description: "scanner rule maintenance", Run: commands.Run, Build: scannerCobraCommand})
 }

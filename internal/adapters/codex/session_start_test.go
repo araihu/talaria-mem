@@ -72,7 +72,7 @@ func sessionCandidate(id, workspaceID string, global bool, kind domain.MemoryKin
 }
 
 func sessionRequest() Request {
-	return Request{EventID: "event-1", SessionID: "codex-session-1", HookName: HookName, WorkingDirectory: "/workspace/repo"}
+	return Request{SessionID: "codex-session-1", HookName: HookName, WorkingDirectory: "/workspace/repo"}
 }
 
 func testSessionService(candidates []retrieval.Candidate, guard *sessionGuard) *Service {

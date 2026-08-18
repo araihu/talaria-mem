@@ -4,6 +4,7 @@ This roadmap separates the target v0.0.1 journey from later capability and
 hardening. It is not a release checklist. The current checkout is summarized
 in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md); items that
 are not composed or freshly evidenced remain open before a release.
+The active consumer-install list is [docs/TASKS.md](docs/TASKS.md).
 
 ## v0.0.1 target — Explicit local memory
 

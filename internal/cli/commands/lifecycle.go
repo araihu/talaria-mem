@@ -37,7 +37,7 @@ func RegisterDaemon(registry *cli.Registry, commands *DaemonCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "daemon command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "daemon", Description: "run local daemon", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "daemon", Description: "run local daemon", Run: commands.Run, Build: daemonCobraCommand})
 }
 
 type SetupOperator interface {
@@ -73,7 +73,7 @@ func (commands *SetupCommands) Run(ctx context.Context, args []string, output cl
 			apply = true
 		case "--remove":
 			request.Remove = true
-		case "--config", "--hook", "--token", "--binary", "--endpoint", "--fingerprint":
+		case "--config", "--hook", "--codex-hooks", "--token", "--binary", "--endpoint", "--fingerprint":
 			if index+1 >= len(args) {
 				return &cli.UsageError{Message: "setup option requires a value"}
 			}
@@ -84,6 +84,8 @@ func (commands *SetupCommands) Run(ctx context.Context, args []string, output cl
 				request.ConfigPath = value
 			case "--hook":
 				request.HookPath = value
+			case "--codex-hooks":
+				request.CodexHooksPath = value
 			case "--token":
 				request.TokenPath = value
 			case "--binary":
@@ -119,7 +121,7 @@ func RegisterSetup(registry *cli.Registry, commands *SetupCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "setup command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "setup", Description: "install local integrations", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "setup", Description: "install local integrations", Run: commands.Run, Build: setupCobraCommand})
 }
 
 type StatusOperator interface {
@@ -150,7 +152,7 @@ func RegisterStatus(registry *cli.Registry, commands *StatusCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "status command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "status", Description: "show daemon status", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "status", Description: "show daemon status", Run: commands.Run, Build: statusCobraCommand})
 }
 
 type DoctorOperator interface {
@@ -204,7 +206,7 @@ func RegisterDoctor(registry *cli.Registry, commands *DoctorCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "doctor command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "doctor", Description: "diagnose local state", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "doctor", Description: "diagnose local state", Run: commands.Run, Build: doctorCobraCommand})
 }
 
 type TokenOperator interface{ Rotate(context.Context) error }
@@ -232,5 +234,5 @@ func RegisterToken(registry *cli.Registry, commands *TokenCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "token command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "token", Description: "manage local bearer token", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "token", Description: "manage local bearer token", Run: commands.Run, Build: tokenCobraCommand})
 }

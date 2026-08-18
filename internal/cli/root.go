@@ -96,59 +96,109 @@ func NewRoot(config RootConfig) *Root {
 	return &Root{registry: registry, memory: config.Memory, workspace: config.Workspace, projection: config.Projection, stdout: stdout, stderr: stderr}
 }
 
-// CobraCommand is the composition-facing command tree. The subcommand
-// handlers remain in this package so T12-T14 can register their commands
-// explicitly without package initialization side effects.
+// NewBootstrapCommand builds the side-effect-free command tree used to answer
+// root help and reject unknown top-level commands before runtime composition.
+func NewBootstrapCommand(stdout, stderr io.Writer) *cobra.Command {
+	registry := NewRegistry()
+	for _, specification := range []struct {
+		name        string
+		description string
+	}{
+		{name: "daemon", description: "run local daemon"},
+		{name: "setup", description: "install local integrations"},
+		{name: "status", description: "show daemon status"},
+		{name: "doctor", description: "diagnose local state"},
+		{name: "token", description: "manage local bearer token"},
+		{name: "db", description: "database maintenance"},
+		{name: "scanner", description: "scanner rule maintenance"},
+	} {
+		_ = registry.Register(Command{
+			Name:        specification.name,
+			Description: specification.description,
+			Run: func(context.Context, []string, Output) error {
+				return errCommandUnavailable
+			},
+		})
+	}
+	return NewRoot(RootConfig{Registry: registry, Stdout: stdout, Stderr: stderr}).CobraCommand()
+}
+
+// CobraCommand is the composition-facing command tree. Cobra owns command
+// discovery, help, flag parsing, positional validation, and completion; the
+// registered handlers only receive normalized application arguments.
 func (root *Root) CobraCommand() *cobra.Command {
+	command, _ := root.newCobraCommand()
+	return command
+}
+
+func (root *Root) newCobraCommand() (*cobra.Command, *bool) {
+	jsonOutput := false
+	output := func(command *cobra.Command) Output {
+		return Output{JSON: jsonOutput, Stdout: command.OutOrStdout(), Stderr: command.ErrOrStderr()}
+	}
 	command := &cobra.Command{
-		Use:                "talaria-mem",
-		Short:              "local workspace-scoped memory",
-		SilenceUsage:       true,
-		SilenceErrors:      true,
-		DisableFlagParsing: true,
-		RunE: func(command *cobra.Command, args []string) error {
-			root.stdout = command.OutOrStdout()
-			root.stderr = command.ErrOrStderr()
-			return root.Run(command.Context(), args)
+		Use:              "talaria-mem",
+		Short:            "local workspace-scoped memory",
+		SilenceUsage:     true,
+		SilenceErrors:    true,
+		TraverseChildren: true,
+		Args:             cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return output(command).Result(map[string]any{
+				"version":  "talaria.cli.v1",
+				"commands": append([]string{"memory", "workspace", "projection"}, root.registry.Names()...),
+			}, "talaria-mem: use memory, workspace, or projection")
 		},
 	}
 	command.SetOut(root.stdout)
 	command.SetErr(root.stderr)
-	for _, name := range []string{"memory", "workspace", "projection"} {
-		name := name
-		child := &cobra.Command{
-			Use:                name,
-			DisableFlagParsing: true,
-			SilenceUsage:       true,
-			SilenceErrors:      true,
-			RunE: func(child *cobra.Command, args []string) error {
-				root.stdout = child.OutOrStdout()
-				root.stderr = child.ErrOrStderr()
-				return root.Run(child.Context(), append([]string{name}, args...))
-			},
-		}
-		child.SetOut(root.stdout)
-		child.SetErr(root.stderr)
-		command.AddCommand(child)
-	}
+	command.PersistentFlags().BoolVar(&jsonOutput, "json", false, "write machine-readable JSON to stdout")
+	command.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return &UsageError{Message: err.Error()}
+	})
+
+	command.AddCommand(memoryCobraCommand(root.memory, output))
+	command.AddCommand(workspaceCobraCommand(root.workspace, output))
+	command.AddCommand(projectionCobraCommand(root.projection, output))
 	for _, name := range root.registry.Names() {
-		name := name
-		child := &cobra.Command{
-			Use:                name,
-			DisableFlagParsing: true,
-			SilenceUsage:       true,
-			SilenceErrors:      true,
-			RunE: func(child *cobra.Command, args []string) error {
-				root.stdout = child.OutOrStdout()
-				root.stderr = child.ErrOrStderr()
-				return root.Run(child.Context(), append([]string{name}, args...))
-			},
+		registered, found := root.registry.Lookup(name)
+		if !found {
+			continue
 		}
-		child.SetOut(root.stdout)
-		child.SetErr(root.stderr)
+		child := registeredCobraCommand(registered, CobraContext{Run: registered.Run, Output: output})
 		command.AddCommand(child)
 	}
-	return command
+	command.SetHelpCommand(&cobra.Command{
+		Use:   "help",
+		Short: "show the command contract",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return output(command).Result(map[string]any{
+				"version":  "talaria.cli.v1",
+				"commands": append([]string{"memory", "workspace", "projection"}, root.registry.Names()...),
+			}, "talaria-mem: use memory, workspace, or projection")
+		},
+	})
+	return command, &jsonOutput
+}
+
+func registeredCobraCommand(registered Command, context CobraContext) *cobra.Command {
+	if registered.Build != nil {
+		if command := registered.Build(context); command != nil {
+			if command.Short == "" {
+				command.Short = registered.Description
+			}
+			return command
+		}
+	}
+	return &cobra.Command{
+		Use:   registered.Name,
+		Short: registered.Description,
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(command *cobra.Command, args []string) error {
+			return invokeCobra(context, command, args)
+		},
+	}
 }
 
 func (root *Root) Registry() *Registry {
@@ -162,49 +212,49 @@ func (root *Root) Run(ctx context.Context, args []string) error {
 	if root == nil {
 		return &UsageError{Message: "CLI unavailable"}
 	}
-	jsonOutput, args := takeJSONFlag(args)
-	output := Output{JSON: jsonOutput, Stdout: root.stdout, Stderr: root.stderr}
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		return output.Result(map[string]any{"version": "talaria.cli.v1", "commands": append([]string{"memory", "workspace", "projection"}, root.registry.Names()...)}, "talaria-mem: use memory, workspace, or projection")
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	command, rest := args[0], args[1:]
-	switch command {
-	case "memory":
-		if root.memory == nil {
-			return errCommandUnavailable
-		}
-		return root.memory.Run(ctx, rest, output)
-	case "workspace":
-		if root.workspace == nil {
-			return errCommandUnavailable
-		}
-		return root.workspace.Run(ctx, rest, output)
-	case "projection":
-		if root.projection == nil {
-			return errCommandUnavailable
-		}
-		return root.projection.Run(ctx, rest, output)
-	default:
-		registered, found := root.registry.Lookup(command)
-		if !found {
-			return &UsageError{Message: fmt.Sprintf("unknown command %q", command)}
-		}
-		return registered.Run(ctx, rest, output)
-	}
+	command, _ := root.newCobraCommand()
+	command.SetArgs(args)
+	return normalizeCobraError(command.ExecuteContext(ctx))
 }
 
 func (root *Root) Execute(ctx context.Context, args []string) ExitCode {
-	err := root.Run(ctx, args)
+	if root == nil {
+		return ExitInternal
+	}
+	if err := ctx.Err(); err != nil {
+		if outputErr := root.writeError(err, false); outputErr != nil {
+			return ExitInternal
+		}
+		return ExitCodeFor(err)
+	}
+	command, jsonOutput := root.newCobraCommand()
+	command.SetArgs(args)
+	err := normalizeCobraError(command.ExecuteContext(ctx))
 	if err == nil {
 		return ExitSuccess
 	}
-	if outputErr := root.writeError(err, containsJSONFlag(args)); outputErr != nil {
+	if outputErr := root.writeError(err, *jsonOutput); outputErr != nil {
 		return ExitInternal
 	}
 	return ExitCodeFor(err)
+}
+
+func normalizeCobraError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var usageErr *UsageError
+	if errors.As(err, &usageErr) {
+		return err
+	}
+	message := err.Error()
+	if strings.HasPrefix(message, "unknown command ") || strings.HasPrefix(message, "unknown flag:") || strings.HasPrefix(message, "unknown shorthand flag:") || strings.Contains(message, "flag provided but not defined") || strings.Contains(message, "flag needs an argument") || strings.Contains(message, "invalid argument") || strings.Contains(message, "requires at least") || strings.Contains(message, "accepts ") {
+		return &UsageError{Message: message}
+	}
+	return err
 }
 
 func (root *Root) writeError(err error, machine bool) error {
@@ -280,26 +330,4 @@ func safeCLIError(err error) string {
 		return "command failed"
 	}
 	return message
-}
-
-func takeJSONFlag(args []string) (bool, []string) {
-	filtered := make([]string, 0, len(args))
-	jsonOutput := false
-	for _, arg := range args {
-		if arg == "--json" {
-			jsonOutput = true
-			continue
-		}
-		filtered = append(filtered, arg)
-	}
-	return jsonOutput, filtered
-}
-
-func containsJSONFlag(args []string) bool {
-	for _, arg := range args {
-		if arg == "--json" {
-			return true
-		}
-	}
-	return false
 }

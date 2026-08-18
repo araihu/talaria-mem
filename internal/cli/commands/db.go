@@ -87,5 +87,5 @@ func RegisterDB(registry *cli.Registry, commands *DBCommands) error {
 	if registry == nil || commands == nil {
 		return &cli.UsageError{Message: "database command unavailable"}
 	}
-	return registry.Register(cli.Command{Name: "db", Description: "database maintenance", Run: commands.Run})
+	return registry.Register(cli.Command{Name: "db", Description: "database maintenance", Run: commands.Run, Build: dbCobraCommand})
 }
