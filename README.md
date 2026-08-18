@@ -1,5 +1,7 @@
 # Talaria-Mem
 
+![Talaria-Mem — talária alada de Hermes](assets/talaria-mem-social-preview.png)
+
 Talaria-Mem is a local-first, workspace-scoped memory service for Codex. The
 current checkout is an unreleased v0.0.2 implementation: one Go binary, a
 SQLite-canonical store, and a rebuildable Markdown projection. Runtime code has
