@@ -38,6 +38,7 @@ type CurationJob struct {
 	NextAttemptAt           sql.NullString `json:"next_attempt_at"`
 	ExpiresAt               string         `json:"expires_at"`
 	ProviderName            string         `json:"provider_name"`
+	ReasonFlags             string         `json:"reason_flags"`
 	SafeErrorClass          string         `json:"safe_error_class"`
 	CreatedAt               string         `json:"created_at"`
 	UpdatedAt               string         `json:"updated_at"`

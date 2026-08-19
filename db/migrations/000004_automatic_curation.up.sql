@@ -171,6 +171,7 @@ CREATE TABLE curation_jobs (
     next_attempt_at TEXT,
     expires_at TEXT NOT NULL,
     provider_name TEXT NOT NULL DEFAULT '',
+    reason_flags TEXT NOT NULL DEFAULT '',
     safe_error_class TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -179,6 +180,7 @@ CREATE TABLE curation_jobs (
     CHECK (length(thread_locator_ciphertext) <= 131072),
     CHECK (length(snapshot_ciphertext) <= 262144),
     CHECK (length(provider_name) <= 128 AND instr(provider_name, char(0)) = 0 AND instr(provider_name, char(10)) = 0 AND instr(provider_name, char(13)) = 0),
+    CHECK (length(reason_flags) <= 128 AND instr(reason_flags, char(0)) = 0 AND instr(reason_flags, char(10)) = 0 AND instr(reason_flags, char(13)) = 0),
     CHECK (length(safe_error_class) <= 64 AND instr(safe_error_class, char(0)) = 0 AND instr(safe_error_class, char(10)) = 0 AND instr(safe_error_class, char(13)) = 0)
 ) STRICT;
 

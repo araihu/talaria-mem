@@ -11,13 +11,18 @@ import (
 type Querier interface {
 	AcknowledgeProjection(ctx context.Context, arg AcknowledgeProjectionParams) error
 	AppendOutbox(ctx context.Context, arg AppendOutboxParams) error
+	ClaimCurationJob(ctx context.Context, arg ClaimCurationJobParams) (int64, error)
 	CountProjectionBlockers(ctx context.Context) (int64, error)
 	CreateMemory(ctx context.Context, arg CreateMemoryParams) error
 	CreateMemoryRevision(ctx context.Context, arg CreateMemoryRevisionParams) error
 	CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams) error
 	DeleteAllFTSRows(ctx context.Context) error
+	DeleteCurationSessionCounter(ctx context.Context, sessionDigest []byte) error
 	DeleteFTSRow(ctx context.Context, memoryID string) error
 	DeleteUsageBefore(ctx context.Context, day string) (int64, error)
+	FinishCurationJob(ctx context.Context, arg FinishCurationJobParams) (int64, error)
+	IncrementCurationSessionCounter(ctx context.Context, arg IncrementCurationSessionCounterParams) error
+	InsertCurationJob(ctx context.Context, arg InsertCurationJobParams) error
 	InsertEligibleFTSRow(ctx context.Context, id string) error
 	InsertPurgeOperation(ctx context.Context, arg InsertPurgeOperationParams) error
 	ListProjectionMemoryIDs(ctx context.Context, arg ListProjectionMemoryIDsParams) ([]string, error)
@@ -25,7 +30,12 @@ type Querier interface {
 	MoveCurrentRevision(ctx context.Context, arg MoveCurrentRevisionParams) (int64, error)
 	MoveInitialCurrentRevision(ctx context.Context, arg MoveInitialCurrentRevisionParams) (int64, error)
 	PendingProjection(ctx context.Context, arg PendingProjectionParams) ([]PendingProjectionRow, error)
+	PurgeExpiredCurationJobs(ctx context.Context, expiresAt string) (int64, error)
 	ReadActivationJournal(ctx context.Context) (RuleActivationJournal, error)
+	ReadClaimableCurationJob(ctx context.Context, arg ReadClaimableCurationJobParams) (ReadClaimableCurationJobRow, error)
+	ReadCurationJobByDigestWatermark(ctx context.Context, arg ReadCurationJobByDigestWatermarkParams) (ReadCurationJobByDigestWatermarkRow, error)
+	ReadCurationJobByID(ctx context.Context, id string) (ReadCurationJobByIDRow, error)
+	ReadCurationSessionCounter(ctx context.Context, sessionDigest []byte) (CurationSessionCounter, error)
 	ReadCurrent(ctx context.Context, id string) (ReadCurrentRow, error)
 	ReadProjectionState(ctx context.Context, scopeID string) (ProjectionState, error)
 	ReadWorkspace(ctx context.Context, id string) (Workspace, error)
@@ -34,7 +44,9 @@ type Querier interface {
 	RebuildEligibleFTSRows(ctx context.Context) error
 	RecordProjectionFailure(ctx context.Context, arg RecordProjectionFailureParams) error
 	ResetProjectionState(ctx context.Context, arg ResetProjectionStateParams) error
+	RetryCurationJob(ctx context.Context, arg RetryCurationJobParams) (int64, error)
 	StoreActivationJournal(ctx context.Context, arg StoreActivationJournalParams) (int64, error)
+	UpdateCurationJobCoalesced(ctx context.Context, arg UpdateCurationJobCoalescedParams) error
 	UpsertProjectionState(ctx context.Context, arg UpsertProjectionStateParams) error
 	UpsertUsageDaily(ctx context.Context, arg UpsertUsageDailyParams) error
 	UpsertUsageLifetime(ctx context.Context, arg UpsertUsageLifetimeParams) error

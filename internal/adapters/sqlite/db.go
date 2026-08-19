@@ -40,7 +40,7 @@ type DB struct {
 
 const (
 	embeddedMigrationTarget             = uint(4)
-	canonicalSchemaContractFingerprint  = "7ca8e397ed8953dcf55790fbc0e1182c66c58f711d4d7e87b3fa98dd2f335869"
+	canonicalSchemaContractFingerprint  = "b0e8099395f3aa64608f605929d89f741a40bd9823959685d806eabca95e10f5"
 	canonicalPreMigrationOneFingerprint = "9fc386a71a70afaa72cfb2c9fca0fba0e2489b33a74f8d8ac8cd0767996fd09d"
 	migrationStageStarted               = "started"
 	migrationStageRollbackBeforeCommit  = "rollback_before_commit"

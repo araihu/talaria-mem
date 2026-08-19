@@ -9,6 +9,9 @@ const (
 	KeyPurposeIdempotency          KeyPurpose = "talaria-mem/idempotency"
 	KeyPurposeBackupManifest       KeyPurpose = "talaria-mem/backup-manifest"
 	KeyPurposeGeneratedFingerprint KeyPurpose = "talaria-mem/generated-fingerprint"
+	KeyPurposeCurationSession      KeyPurpose = "talaria-mem/curation-session"
+	KeyPurposeCurationLocator      KeyPurpose = "talaria-mem/curation-locator"
+	KeyPurposeCurationSnapshot     KeyPurpose = "talaria-mem/curation-snapshot"
 	KeyDerivationVersion           uint32     = 1
 )
 
@@ -16,7 +19,7 @@ func (purpose KeyPurpose) Valid() bool {
 	switch purpose {
 	case KeyPurposeSession, KeyPurposeIdempotency, KeyPurposeBackupManifest:
 		return true
-	case KeyPurposeGeneratedFingerprint:
+	case KeyPurposeGeneratedFingerprint, KeyPurposeCurationSession, KeyPurposeCurationLocator, KeyPurposeCurationSnapshot:
 		return true
 	default:
 		return false
