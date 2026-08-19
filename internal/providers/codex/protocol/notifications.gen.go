@@ -7,8 +7,8 @@ import "encoding/json"
 const (
 	NotificationTurnStarted      = "turn/started"
 	NotificationAgentMessageDone = "item/completed"
-	NotificationTurnCompleted   = "turn/completed"
-	NotificationError           = "error"
+	NotificationTurnCompleted    = "turn/completed"
+	NotificationError            = "error"
 )
 
 type Notification struct {
