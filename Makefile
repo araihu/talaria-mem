@@ -6,6 +6,7 @@ OPENAPI_SOURCE := api/openapi/talaria.yaml
 OPENAPI_OVERLAY := api/openapi/vacuum.yaml
 OPENAPI_GENERATED := internal/adapters/http/openapi.gen.go
 SCANNER_ENVIRONMENT_DOC := internal/scanner/environment.md
+CODEX_PROTOCOL_GENERATED := internal/providers/codex/protocol
 
 .PHONY: build test test-race vet sqlc-generate generate openapi-lint source-tree-clean check clean sqlc-negative
 
@@ -49,6 +50,7 @@ check: test test-race vet generate openapi-lint source-tree-clean
 	@git diff --exit-code -- "$(SCANNER_ENVIRONMENT_DOC)"
 	@git diff --exit-code -- internal/adapters/sqlite/sqlc
 	@git diff --exit-code -- internal/adapters/sqlite/sqlc.manifest
+	@git diff --exit-code -- "$(CODEX_PROTOCOL_GENERATED)"
 	@sh scripts/check-sqlc-generated.sh
 
 sqlc-negative:

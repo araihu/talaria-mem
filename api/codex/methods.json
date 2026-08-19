@@ -1,0 +1,8 @@
+{
+  "initialize": ["v1/InitializeParams", "v1/InitializeResponse"],
+  "model/list": ["v2/ModelListParams", "v2/ModelListResponse"],
+  "thread/read": ["v2/ThreadReadParams", "v2/ThreadReadResponse"],
+  "thread/fork": ["v2/ThreadForkParams", "v2/ThreadForkResponse"],
+  "thread/start": ["v2/ThreadStartParams", "v2/ThreadStartResponse"],
+  "turn/start": ["v2/TurnStartParams", "v2/TurnStartResponse"]
+}
