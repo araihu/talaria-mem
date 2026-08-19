@@ -81,12 +81,13 @@ type MemoryService struct {
 	Idempotency        *Idempotency
 	DurableIdempotency IdempotencyStore
 	Guard              *ContentOutputGuard
+	Deriver            ports.KeyDeriver
 	mu                 sync.Mutex
 }
 
 func NewMemoryService(repository ports.MemoryRepository, scanner ports.Scanner, clock ports.Clock, deriver ports.KeyDeriver) *MemoryService {
 	idempotency := NewIdempotency(clock, deriver)
-	service := &MemoryService{Repository: repository, Scanner: scanner, Clock: clock, Idempotency: idempotency,
+	service := &MemoryService{Repository: repository, Scanner: scanner, Clock: clock, Idempotency: idempotency, Deriver: deriver,
 		Guard: NewContentOutputGuard(scanner, nil, clock)}
 	if durable, ok := repository.(IdempotencyStore); ok {
 		service.DurableIdempotency = durable

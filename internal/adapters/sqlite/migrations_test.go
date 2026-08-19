@@ -185,14 +185,14 @@ func TestMigrationRoundTrip(t *testing.T) {
 	if err := database.QueryRow("SELECT version, dirty FROM schema_migrations").Scan(&version, &dirty); err != nil {
 		t.Fatal(err)
 	}
-	if version != 3 || dirty {
+	if version != int(embeddedMigrationTarget) || dirty {
 		t.Fatalf("migration protocol state = version %d dirty %v", version, dirty)
 	}
 	var completed, failed sql.NullInt64
 	if err := database.QueryRow("SELECT completed_version, failed_version FROM migration_journal ORDER BY id DESC LIMIT 1").Scan(&completed, &failed); err != nil {
 		t.Fatal(err)
 	}
-	if !completed.Valid || completed.Int64 != 3 || failed.Valid {
+	if !completed.Valid || completed.Int64 != int64(embeddedMigrationTarget) || failed.Valid {
 		t.Fatalf("migration journal completion = completed %v failed %v", completed, failed)
 	}
 	if err := applyDownMigrations(context.Background(), database); err != nil {
@@ -257,12 +257,12 @@ func TestMigrationResumesVerifiedDirtyVersion(t *testing.T) {
 	if err := applyMigrations(context.Background(), database); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"rule_activation_journal", "activation_epoch_audit", "managed_backups", "purge_operations"} {
+	for _, table := range []string{"curation_jobs", "curation_session_counters"} {
 		if _, err := database.Exec("DROP TABLE " + table); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := database.Exec("UPDATE schema_migrations SET version = 3, dirty = 1"); err != nil {
+	if _, err := database.Exec("UPDATE schema_migrations SET version = 4, dirty = 1"); err != nil {
 		t.Fatal(err)
 	}
 	fingerprint, err := migrationSchemaFingerprint(context.Background(), database)
@@ -270,7 +270,7 @@ func TestMigrationResumesVerifiedDirtyVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := database.Exec("INSERT INTO migration_journal(run_id, target_version, current_version, failed_version, completed_version, failure_stage, schema_fingerprint, dirty, safe_error, started_at, updated_at) VALUES ('migration-fixture', 3, 3, 3, 2, 'rollback_before_commit', ?, 1, 'fixture', ?, ?)", fingerprint, timestamp, timestamp); err != nil {
+	if _, err := database.Exec("INSERT INTO migration_journal(run_id, target_version, current_version, failed_version, completed_version, failure_stage, schema_fingerprint, dirty, safe_error, started_at, updated_at) VALUES ('migration-fixture', 4, 4, 4, 3, 'rollback_before_commit', ?, 1, 'fixture', ?, ?)", fingerprint, timestamp, timestamp); err != nil {
 		t.Fatal(err)
 	}
 	if err := applyMigrations(context.Background(), database); err != nil {

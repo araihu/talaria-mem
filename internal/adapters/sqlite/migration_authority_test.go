@@ -16,7 +16,7 @@ func TestMigrationAuthorityCP1A6RejectsDivergentCleanAuthoritiesWithoutMutation(
 	if err := applyMigrations(context.Background(), database); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec("PRAGMA user_version = 4"); err != nil {
+	if _, err := database.Exec("PRAGMA user_version = 3"); err != nil {
 		t.Fatal(err)
 	}
 	if err := applyMigrations(context.Background(), database); err == nil {
@@ -26,7 +26,7 @@ func TestMigrationAuthorityCP1A6RejectsDivergentCleanAuthoritiesWithoutMutation(
 	if err := database.QueryRow("PRAGMA user_version").Scan(&userVersion); err != nil {
 		t.Fatal(err)
 	}
-	if userVersion != 4 {
+	if userVersion != 3 {
 		t.Fatalf("rejected authority mutated user_version to %d", userVersion)
 	}
 }

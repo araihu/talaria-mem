@@ -7,14 +7,15 @@ import (
 type Actor string
 
 const (
-	ActorCLI    Actor = "cli"
-	ActorMCP    Actor = "mcp"
-	ActorImport Actor = "import"
-	ActorSystem Actor = "system"
+	ActorCLI     Actor = "cli"
+	ActorMCP     Actor = "mcp"
+	ActorImport  Actor = "import"
+	ActorSystem  Actor = "system"
+	ActorCurator Actor = "curator"
 )
 
 func (actor Actor) Valid() bool {
-	return actor == ActorCLI || actor == ActorMCP || actor == ActorImport || actor == ActorSystem
+	return actor == ActorCLI || actor == ActorMCP || actor == ActorImport || actor == ActorSystem || actor == ActorCurator
 }
 
 type Operation string
@@ -35,6 +36,9 @@ func trustFor(actor Actor, requested bool) (domain.Trust, error) {
 	}
 	if requested && actor != ActorCLI {
 		return "", domain.NewError(domain.CodeValidation, "only CLI may assert verified trust", false)
+	}
+	if actor == ActorCurator {
+		return "", domain.NewError(domain.CodeValidation, "curator must use generated memory creation", false)
 	}
 	if requested {
 		return domain.TrustVerified, nil

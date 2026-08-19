@@ -24,6 +24,32 @@ type ActivationEpochAudit struct {
 	UpdatedAt                string `json:"updated_at"`
 }
 
+type CurationJob struct {
+	ID                      string         `json:"id"`
+	WorkspaceID             string         `json:"workspace_id"`
+	Reason                  string         `json:"reason"`
+	Priority                int64          `json:"priority"`
+	SessionDigest           []byte         `json:"session_digest"`
+	SourceWatermark         int64          `json:"source_watermark"`
+	ThreadLocatorCiphertext []byte         `json:"thread_locator_ciphertext"`
+	SnapshotCiphertext      []byte         `json:"snapshot_ciphertext"`
+	State                   string         `json:"state"`
+	AttemptCount            int64          `json:"attempt_count"`
+	NextAttemptAt           sql.NullString `json:"next_attempt_at"`
+	ExpiresAt               string         `json:"expires_at"`
+	ProviderName            string         `json:"provider_name"`
+	SafeErrorClass          string         `json:"safe_error_class"`
+	CreatedAt               string         `json:"created_at"`
+	UpdatedAt               string         `json:"updated_at"`
+}
+
+type CurationSessionCounter struct {
+	SessionDigest []byte `json:"session_digest"`
+	PromptCount   int64  `json:"prompt_count"`
+	LastWatermark int64  `json:"last_watermark"`
+	ExpiresAt     string `json:"expires_at"`
+}
+
 type DeletionReceipt struct {
 	ID               string `json:"id"`
 	OperationID      string `json:"operation_id"`
@@ -59,16 +85,17 @@ type ManagedBackup struct {
 }
 
 type Memory struct {
-	ID                string         `json:"id"`
-	WorkspaceID       sql.NullString `json:"workspace_id"`
-	UserGlobal        int64          `json:"user_global"`
-	Kind              string         `json:"kind"`
-	Trust             string         `json:"trust"`
-	Lifecycle         string         `json:"lifecycle"`
-	CurrentRevisionID sql.NullString `json:"current_revision_id"`
-	Pinned            int64          `json:"pinned"`
-	CreatedAt         string         `json:"created_at"`
-	UpdatedAt         string         `json:"updated_at"`
+	ID                   string         `json:"id"`
+	WorkspaceID          sql.NullString `json:"workspace_id"`
+	UserGlobal           int64          `json:"user_global"`
+	Kind                 string         `json:"kind"`
+	Trust                string         `json:"trust"`
+	Lifecycle            string         `json:"lifecycle"`
+	CurrentRevisionID    sql.NullString `json:"current_revision_id"`
+	GeneratedFingerprint string         `json:"generated_fingerprint"`
+	Pinned               int64          `json:"pinned"`
+	CreatedAt            string         `json:"created_at"`
+	UpdatedAt            string         `json:"updated_at"`
 }
 
 type MemoryAlias struct {

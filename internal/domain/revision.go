@@ -42,6 +42,9 @@ func ValidateMemoryRevision(revision MemoryRevision) error {
 	if !revision.Trust.Valid() || !revision.Lifecycle.Valid() {
 		return NewError(CodeValidation, "invalid trust or lifecycle", false)
 	}
+	if revision.Trust == TrustGenerated && revision.Kind == MemoryKindStandingInstruction {
+		return NewError(CodeValidation, "generated memory cannot be a standing instruction", false)
+	}
 	if _, err := ValidateResolutionState(revision.Kind, revision.ResolutionState); err != nil {
 		return err
 	}

@@ -14,7 +14,7 @@ func TestEnums(t *testing.T) {
 			t.Errorf("MemoryKind(%q).Valid() = false", kind)
 		}
 	}
-	for _, trust := range []Trust{TrustVerified, TrustUnverified} {
+	for _, trust := range []Trust{TrustVerified, TrustGenerated, TrustUnverified} {
 		if !trust.Valid() {
 			t.Errorf("Trust(%q).Valid() = false", trust)
 		}
@@ -156,5 +156,20 @@ func TestValidateMemoryRevisionFailureEmptyStateDefaultsOpen(t *testing.T) {
 	state, err := ValidateResolutionState(revision.Kind, revision.ResolutionState)
 	if err != nil || state != ResolutionOpen {
 		t.Fatalf("failure empty state = %q, %v; want open", state, err)
+	}
+}
+
+func TestGeneratedTrustCannotUseStandingInstruction(t *testing.T) {
+	if TrustGenerated.Valid() == false {
+		t.Fatal("generated trust is invalid")
+	}
+	revision := MemoryRevision{
+		ID: "018f1f61-7b5c-7abc-8def-0123456789ab", MemoryID: "018f1f61-7b5c-7abc-8def-1123456789ab",
+		Number: 1, Kind: MemoryKindStandingInstruction, Title: "title", Content: "body",
+		Trust: TrustGenerated, Lifecycle: LifecycleActive,
+		CreatedAt: time.Date(2026, time.August, 15, 1, 2, 3, 4, time.UTC),
+	}
+	if err := ValidateMemoryRevision(revision); err == nil {
+		t.Fatal("generated standing instruction accepted")
 	}
 }

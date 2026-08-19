@@ -56,16 +56,17 @@ func (repository *Repository) ReadCurrent(ctx context.Context, memoryID string) 
 	}
 
 	memory := domain.Memory{
-		ID:                row.ID,
-		WorkspaceID:       row.WorkspaceID.String,
-		UserGlobal:        row.UserGlobal == 1,
-		Kind:              domain.MemoryKind(row.Kind),
-		Trust:             domain.Trust(row.Trust),
-		Lifecycle:         domain.Lifecycle(row.Lifecycle),
-		CurrentRevisionID: row.CurrentRevisionID.String,
-		Pinned:            row.Pinned == 1,
-		CreatedAt:         createdAt,
-		UpdatedAt:         updatedAt,
+		ID:                   row.ID,
+		WorkspaceID:          row.WorkspaceID.String,
+		UserGlobal:           row.UserGlobal == 1,
+		Kind:                 domain.MemoryKind(row.Kind),
+		Trust:                domain.Trust(row.Trust),
+		Lifecycle:            domain.Lifecycle(row.Lifecycle),
+		CurrentRevisionID:    row.CurrentRevisionID.String,
+		GeneratedFingerprint: row.GeneratedFingerprint,
+		Pinned:               row.Pinned == 1,
+		CreatedAt:            createdAt,
+		UpdatedAt:            updatedAt,
 	}
 	revision := domain.MemoryRevision{
 		ID:              row.ID_2,
@@ -112,16 +113,17 @@ func (transaction *repositoryTx) CreateMemory(ctx context.Context, memory domain
 	workspaceID := sql.NullString{String: memory.WorkspaceID, Valid: memory.WorkspaceID != ""}
 	currentRevisionID := sql.NullString{String: memory.CurrentRevisionID, Valid: memory.CurrentRevisionID != ""}
 	return domain.MapSQLiteError(transaction.queries.CreateMemory(ctx, sqlc.CreateMemoryParams{
-		ID:                memory.ID,
-		WorkspaceID:       workspaceID,
-		UserGlobal:        boolInt(memory.UserGlobal),
-		Kind:              string(memory.Kind),
-		Trust:             string(memory.Trust),
-		Lifecycle:         string(memory.Lifecycle),
-		CurrentRevisionID: currentRevisionID,
-		Pinned:            boolInt(memory.Pinned),
-		CreatedAt:         formatTimestamp(memory.CreatedAt),
-		UpdatedAt:         formatTimestamp(memory.UpdatedAt),
+		ID:                   memory.ID,
+		WorkspaceID:          workspaceID,
+		UserGlobal:           boolInt(memory.UserGlobal),
+		Kind:                 string(memory.Kind),
+		Trust:                string(memory.Trust),
+		Lifecycle:            string(memory.Lifecycle),
+		CurrentRevisionID:    currentRevisionID,
+		GeneratedFingerprint: memory.GeneratedFingerprint,
+		Pinned:               boolInt(memory.Pinned),
+		CreatedAt:            formatTimestamp(memory.CreatedAt),
+		UpdatedAt:            formatTimestamp(memory.UpdatedAt),
 	}))
 }
 

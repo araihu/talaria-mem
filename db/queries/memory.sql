@@ -1,8 +1,8 @@
 -- name: CreateMemory :exec
 INSERT INTO memories (
     id, workspace_id, user_global, kind, trust, lifecycle, current_revision_id,
-    pinned, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    generated_fingerprint, pinned, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: CreateMemoryRevision :exec
 INSERT INTO memory_revisions (
@@ -33,9 +33,9 @@ SELECT revisions.title, revisions.content, revisions.tags_json, memories.id
 FROM memories
 JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
 WHERE memories.id = ?
-  AND memories.trust = 'verified'
+  AND memories.trust IN ('verified', 'generated')
   AND memories.lifecycle = 'active'
-  AND revisions.trust = 'verified'
+  AND revisions.trust IN ('verified', 'generated')
   AND revisions.lifecycle = 'active';
 
 -- name: RebuildEligibleFTSRows :exec
@@ -43,9 +43,9 @@ INSERT INTO memory_fts(title, content, tags, memory_id)
 SELECT revisions.title, revisions.content, revisions.tags_json, memories.id
 FROM memories
 JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
-WHERE memories.trust = 'verified'
+WHERE memories.trust IN ('verified', 'generated')
   AND memories.lifecycle = 'active'
-  AND revisions.trust = 'verified'
+  AND revisions.trust IN ('verified', 'generated')
   AND revisions.lifecycle = 'active'
 ORDER BY memories.id;
 
@@ -58,7 +58,7 @@ ON CONFLICT(scope_id, revision_watermark) DO NOTHING;
 SELECT
     memories.id, memories.workspace_id, memories.user_global, memories.kind,
     memories.trust, memories.lifecycle, memories.current_revision_id,
-    memories.pinned, memories.created_at, memories.updated_at,
+    memories.generated_fingerprint, memories.pinned, memories.created_at, memories.updated_at,
     revisions.id, revisions.revision_number, revisions.kind, revisions.title,
     revisions.content, revisions.tags_json, revisions.resolution_state,
     revisions.trust, revisions.lifecycle, revisions.provenance_actor,

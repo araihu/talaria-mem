@@ -81,10 +81,11 @@ func TestMigrationCrashAfterCleanAndAuthorityWrites(t *testing.T) {
 		{name: "after-clean-version-1", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_CLEAN=1", code: 95},
 		{name: "after-clean-version-2", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_CLEAN=2", code: 95},
 		{name: "after-clean-version-3", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_CLEAN=3", code: 95},
-		{name: "before-user-version", variable: "TALARIA_TEST_MIGRATION_KILL_BEFORE_USER_VERSION=3", code: 96},
-		{name: "after-user-version", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_USER_VERSION=3", code: 97},
-		{name: "before-final-journal", variable: "TALARIA_TEST_MIGRATION_KILL_BEFORE_FINAL_JOURNAL=3", code: 98},
-		{name: "after-final-journal", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_FINAL_JOURNAL=3", code: 99},
+		{name: "after-clean-version-4", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_CLEAN=4", code: 95},
+		{name: "before-user-version", variable: "TALARIA_TEST_MIGRATION_KILL_BEFORE_USER_VERSION=4", code: 96},
+		{name: "after-user-version", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_USER_VERSION=4", code: 97},
+		{name: "before-final-journal", variable: "TALARIA_TEST_MIGRATION_KILL_BEFORE_FINAL_JOURNAL=4", code: 98},
+		{name: "after-final-journal", variable: "TALARIA_TEST_MIGRATION_KILL_AFTER_FINAL_JOURNAL=4", code: 99},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "authority-windows.db")
@@ -164,7 +165,7 @@ func TestMigrationDirtyRecoveryAfterProcessDeath(t *testing.T) {
 				database.Close()
 				t.Fatal(err)
 			}
-			if version != 3 || dirty {
+			if version != int(embeddedMigrationTarget) || dirty {
 				database.Close()
 				t.Fatalf("recovered state = version %d dirty %v", version, dirty)
 			}

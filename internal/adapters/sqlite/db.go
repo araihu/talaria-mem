@@ -39,8 +39,8 @@ type DB struct {
 }
 
 const (
-	embeddedMigrationTarget             = uint(3)
-	canonicalSchemaContractFingerprint  = "64b27ee2cd4611c805cd4c68bdfe03663156eb6ecc171da13741bee1bd7d3ba5"
+	embeddedMigrationTarget             = uint(4)
+	canonicalSchemaContractFingerprint  = "7ca8e397ed8953dcf55790fbc0e1182c66c58f711d4d7e87b3fa98dd2f335869"
 	canonicalPreMigrationOneFingerprint = "9fc386a71a70afaa72cfb2c9fca0fba0e2489b33a74f8d8ac8cd0767996fd09d"
 	migrationStageStarted               = "started"
 	migrationStageRollbackBeforeCommit  = "rollback_before_commit"
@@ -697,7 +697,13 @@ func applyDownMigrations(ctx context.Context, handle *sql.DB) error {
 			return fmt.Errorf("seed migration version %d: %w", legacyVersion, err)
 		}
 	}
-	if err := migration.Steps(-3); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	if err := migration.Steps(-4); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		// Reverse migrations are test fixtures only. A guard refusal must leave
+		// migration authority clean at the forward schema version; the DDL
+		// transaction itself has already rolled back.
+		if restoreErr := migration.Force(int(embeddedMigrationTarget)); restoreErr != nil {
+			return errors.Join(fmt.Errorf("reverse embedded migrations: %w", err), fmt.Errorf("restore migration authority: %w", restoreErr))
+		}
 		return fmt.Errorf("reverse embedded migrations: %w", err)
 	}
 	if _, err := handle.ExecContext(ctx, "DROP TABLE IF EXISTS schema_migrations"); err != nil {
@@ -1563,6 +1569,8 @@ func migrationPostcondition(ctx context.Context, handle *sql.DB, version uint) (
 		names = []string{"usage_daily", "usage_lifetime", "usage_session_hits", "idempotency_requests", "skill_promotions", "deletion_receipts"}
 	case 3:
 		names = []string{"purge_operations", "managed_backups", "rule_activation_journal", "activation_epoch_audit"}
+	case 4:
+		names = []string{"curation_jobs", "curation_session_counters"}
 	default:
 		return false, fmt.Errorf("unsupported dirty migration version %d", version)
 	}

@@ -78,7 +78,7 @@ func (tx *serviceTx) ReplaceFTSRow(_ context.Context, memoryID string) error {
 	delete(tx.repo.fts, memoryID)
 	memory := tx.repo.memories[memoryID]
 	revision := tx.repo.revisions[memory.CurrentRevisionID]
-	if memory.Trust == domain.TrustVerified && memory.Lifecycle == domain.LifecycleActive && revision.Trust == domain.TrustVerified && revision.Lifecycle == domain.LifecycleActive {
+	if (memory.Trust == domain.TrustVerified || memory.Trust == domain.TrustGenerated) && memory.Lifecycle == domain.LifecycleActive && (revision.Trust == domain.TrustVerified || revision.Trust == domain.TrustGenerated) && revision.Lifecycle == domain.LifecycleActive {
 		tx.repo.fts[memoryID] = true
 	}
 	return nil
@@ -176,5 +176,34 @@ func TestMemoryServiceUpdateConflictAndForgetRestore(t *testing.T) {
 	}
 	if restored.Lifecycle != domain.LifecycleActive || restored.Trust != domain.TrustVerified {
 		t.Fatalf("restore result = %+v", restored)
+	}
+}
+
+func TestMemoryServiceGeneratedCreationIsServerAssignedAndAtomic(t *testing.T) {
+	repo := newServiceRepo()
+	scanner := &serviceScanner{status: ports.ScanClean}
+	service := NewMemoryService(repo, scanner, serviceClock{now: time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)}, nil)
+	result, err := service.CreateGenerated(context.Background(), GeneratedMutationRequest{WorkspaceID: "workspace", Kind: domain.MemoryKindState, Title: "generated", Content: "safe"}, GeneratedSourceInline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Trust != domain.TrustGenerated {
+		t.Fatalf("trust = %q", result.Trust)
+	}
+	memory, revision, err := repo.ReadCurrent(context.Background(), result.MemoryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if memory.Pinned || memory.UserGlobal || revision.Provenance.Actor != string(ActorCurator) || revision.Provenance.Source != string(GeneratedSourceInline) {
+		t.Fatalf("generated provenance/mutation = %#v %#v", memory, revision)
+	}
+	if _, err := service.CreateGenerated(context.Background(), GeneratedMutationRequest{WorkspaceID: "workspace", Kind: domain.MemoryKindStandingInstruction, Title: "bad", Content: "safe"}, GeneratedSourceAutomatic); !domain.IsCode(err, domain.CodeValidation) {
+		t.Fatalf("standing instruction error = %v", err)
+	}
+	if _, err := service.CreateGeneratedBatch(context.Background(), []GeneratedMutationRequest{{WorkspaceID: "workspace", Kind: domain.MemoryKindState, Title: "one", Content: "safe"}, {WorkspaceID: "workspace", Kind: domain.MemoryKindStandingInstruction, Title: "two", Content: "bad"}}, GeneratedSourceAutomatic); !domain.IsCode(err, domain.CodeValidation) {
+		t.Fatalf("batch error = %v", err)
+	}
+	if len(repo.memories) != 1 {
+		t.Fatalf("failed batch mutated %d memories", len(repo.memories))
 	}
 }

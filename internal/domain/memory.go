@@ -24,11 +24,12 @@ type Trust string
 
 const (
 	TrustVerified   Trust = "verified"
+	TrustGenerated  Trust = "generated"
 	TrustUnverified Trust = "unverified"
 )
 
 func (trust Trust) Valid() bool {
-	return trust == TrustVerified || trust == TrustUnverified
+	return trust == TrustVerified || trust == TrustGenerated || trust == TrustUnverified
 }
 
 type Lifecycle string
@@ -89,16 +90,17 @@ type MemoryRevision struct {
 }
 
 type Memory struct {
-	ID                string
-	WorkspaceID       string
-	UserGlobal        bool
-	Kind              MemoryKind
-	Trust             Trust
-	Lifecycle         Lifecycle
-	CurrentRevisionID string
-	Pinned            bool
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   string
+	WorkspaceID          string
+	UserGlobal           bool
+	Kind                 MemoryKind
+	Trust                Trust
+	Lifecycle            Lifecycle
+	CurrentRevisionID    string
+	GeneratedFingerprint string
+	Pinned               bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 func ValidateResolutionState(kind MemoryKind, state ResolutionState) (ResolutionState, error) {

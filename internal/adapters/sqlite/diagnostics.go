@@ -39,9 +39,9 @@ func (database *DB) FTSReport(ctx context.Context) (FTSReport, error) {
 SELECT memories.id, revisions.title, revisions.content, revisions.tags_json
 FROM memories
 JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
-WHERE memories.trust = 'verified'
+WHERE memories.trust IN ('verified', 'generated')
   AND memories.lifecycle = 'active'
-  AND revisions.trust = 'verified'
+  AND revisions.trust IN ('verified', 'generated')
   AND revisions.lifecycle = 'active'
 ORDER BY memories.id`)
 	if err != nil {
