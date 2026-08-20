@@ -33,6 +33,7 @@ func TestParseHookEventRejectsDuplicateOversizedAndTrailingInput(t *testing.T) {
 		`{"session_id":"s","session_id":"other","cwd":"/tmp","hook_event_name":"SessionEnd"}`,
 		`{"session_id":"s","cwd":"/tmp","hook_event_name":"SessionEnd","unknown":{"x":1,"x":2}}`,
 		`{"session_id":"s","cwd":"/tmp","hook_event_name":"SessionEnd"}{}`,
+		`{"session_id":"s","cwd":"/tmp","hook_event_name":"UserPromptSubmit","prompt":"one","current_prompt":"two"}`,
 	} {
 		if _, err := ParseHookEvent([]byte(input)); !domain.IsCode(err, domain.CodeValidation) {
 			t.Fatalf("input %q error = %v", input, err)

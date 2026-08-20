@@ -49,10 +49,11 @@ func StartClient(parent context.Context, configuration ClientConfig) (*AppClient
 	if configuration.Timeout <= 0 {
 		configuration.Timeout = 90 * time.Second
 	}
+	args := appServerArgs(configuration.Args)
 	events := make(chan ProtocolEvent, 32)
 	process, err := StartProcess(parent, ProcessConfig{
 		Command: configuration.Command,
-		Args:    configuration.Args,
+		Args:    args,
 		Env:     configuration.Env,
 		Dir:     configuration.Dir,
 		Timeout: configuration.Timeout,
@@ -85,6 +86,16 @@ func StartClient(parent context.Context, configuration ClientConfig) (*AppClient
 		return nil, curation.NewProviderError(curation.ErrorUnavailable, fmt.Errorf("configured model %q is unavailable", configuration.Model))
 	}
 	return client, nil
+}
+
+// appServerArgs keeps provider configuration concise: a configured Codex
+// executable means the normal `codex app-server` stdio process. Tests and
+// wrapper executables may still provide explicit arguments.
+func appServerArgs(args []string) []string {
+	if len(args) == 0 {
+		return []string{"app-server"}
+	}
+	return append([]string(nil), args...)
 }
 
 func (client *AppClient) Model() string {

@@ -111,6 +111,11 @@ func (client *Client) Curate(parent context.Context, request curation.CurationRe
 	if err != nil {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorUnavailable, err)
 	}
+	defer func() {
+		for index := range responseBody {
+			responseBody[index] = 0
+		}
+	}()
 	if len(responseBody) > maxProviderResponseBytes {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorInvalidOutput, errors.New("provider response too large"))
 	}

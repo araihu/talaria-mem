@@ -479,5 +479,7 @@ These remain visible after the contract and smoke fixes:
    using `config.toml` or repository-local hooks must provide a separate
    integration path and trust review.
 
-The supported boundary remains local, single-user, and no-outbound-network.
-Do not add cloud transcript extraction to make installation appear easier.
+The supported boundary remains local and single-user. Outbound inference occurs
+only through the configured provider chain; no unconfigured network destination
+or cloud transcript extraction is used. Do not add cloud transcript extraction
+to make installation appear easier.

@@ -136,3 +136,18 @@ func TestStartClientMapsHandshakeTimeout(t *testing.T) {
 		t.Fatalf("StartClient() error = %v, want timeout", err)
 	}
 }
+
+func TestAppServerArgsDefaultToCodexSubcommand(t *testing.T) {
+	if got := appServerArgs(nil); len(got) != 1 || got[0] != "app-server" {
+		t.Fatalf("appServerArgs(nil) = %#v", got)
+	}
+	provided := []string{"--stdio"}
+	got := appServerArgs(provided)
+	if len(got) != len(provided) || got[0] != provided[0] {
+		t.Fatalf("appServerArgs(provided) = %#v", got)
+	}
+	got[0] = "changed"
+	if provided[0] != "--stdio" {
+		t.Fatal("appServerArgs returned caller-owned slice")
+	}
+}

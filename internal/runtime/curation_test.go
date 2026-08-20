@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guilhermecastro/talaria-mem/internal/curation"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
 	"github.com/guilhermecastro/talaria-mem/internal/providers/codex/protocol"
 	providerconfig "github.com/guilhermecastro/talaria-mem/internal/providers/config"
@@ -34,6 +35,29 @@ func TestRuntimeSnapshotSourceMinimizesCodexThread(t *testing.T) {
 	}
 	if strings.Contains(string(snapshot.Snapshot), "do-not-persist-command") || !strings.Contains(string(snapshot.Snapshot), "remember this decision") || !strings.Contains(string(snapshot.Snapshot), `"name":"sh"`) {
 		t.Fatalf("snapshot was not minimized: %s", snapshot.Snapshot)
+	}
+}
+
+func TestRuntimeSnapshotSourceUsesTopLevelCodexItemsWhenTurnsAbsent(t *testing.T) {
+	source := newRuntimeSnapshotSource(providerConfigForTest(), cleanRuntimeScanner{})
+	snapshot, err := source.snapshotFromThread(context.Background(), protocol.ThreadSnapshot{
+		ID:    "thread-items",
+		Items: []protocol.ThreadItem{{Type: "assistant_message", Text: "top-level message"}},
+	}, "fallback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(snapshot.Snapshot), "top-level message") {
+		t.Fatalf("top-level thread items were dropped: %s", snapshot.Snapshot)
+	}
+}
+
+func TestRuntimeSnapshotSourceDoesNotDegradeCanceledCaptureIntoAJob(t *testing.T) {
+	source := newRuntimeSnapshotSource(providerConfigForTest(), cleanRuntimeScanner{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := source.Capture(ctx, curation.CaptureRequest{SessionID: "session"}); err == nil {
+		t.Fatal("canceled capture returned a fallback snapshot")
 	}
 }
 

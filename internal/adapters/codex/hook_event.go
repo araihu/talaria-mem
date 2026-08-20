@@ -61,6 +61,7 @@ func DecodeHookEvent(reader io.Reader) (HookEvent, error) {
 
 	var event HookEvent
 	seen := make(map[string]struct{}, 5)
+	promptSeen := false
 	for decoder.More() {
 		keyToken, err := decoder.Token()
 		if err != nil {
@@ -88,6 +89,10 @@ func DecodeHookEvent(reader io.Reader) (HookEvent, error) {
 				return HookEvent{}, err
 			}
 		case "current_prompt", "prompt":
+			if promptSeen {
+				return HookEvent{}, domain.NewError(domain.CodeValidation, "duplicate hook prompt field", false)
+			}
+			promptSeen = true
 			if err := decodeHookString(decoder, &event.CurrentPrompt, MaxHookPromptBytes, true); err != nil {
 				return HookEvent{}, err
 			}

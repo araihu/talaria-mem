@@ -49,6 +49,9 @@ func (source *runtimeSnapshotSource) Capture(ctx context.Context, request curati
 		}
 		source.markHostUnavailable()
 	}
+	if ctx != nil && ctx.Err() != nil {
+		return curation.SanitizedSnapshot{}, ctx.Err()
+	}
 	// A host snapshot failure must not block a prompt or compaction. The
 	// current prompt is appended by EnqueueService after this bounded envelope
 	// is returned, giving a configured local provider a safe degraded input.
@@ -110,7 +113,11 @@ func (source *runtimeSnapshotSource) snapshotFromThread(ctx context.Context, thr
 		threadID = fallbackThreadID
 	}
 	envelope := snapshotEnvelope{Turns: make([]curation.SnapshotTurn, 0, len(thread.Turns)), Tools: make([]curation.SnapshotTool, 0)}
-	for _, turn := range thread.Turns {
+	turns := thread.Turns
+	if len(turns) == 0 && len(thread.Items) > 0 {
+		turns = []protocol.Turn{{Items: thread.Items}}
+	}
+	for _, turn := range turns {
 		textParts := make([]string, 0, len(turn.Items))
 		for _, item := range turn.Items {
 			if !isTextItem(item.Type) {
