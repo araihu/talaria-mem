@@ -23,7 +23,7 @@ use local fakes and never require provider access.
 | Backup reconciliation | `db backup reconcile --dry-run/--apply` is composed | Maintenance tests | Compose database restore only after its scanner/lock contract is wired |
 | Scanner rule upgrade | Library contracts exist; CLI registration is intentionally unavailable | `scanner rules upgrade` returns unavailable | Add the operator and activation lifecycle |
 | Acceptance catalog | G00–G30 files and receipts exist as historical scaffolding | Metadata checks only; not release evidence for this checkout | Execute every catalog command and bind fresh raw output to the frozen candidate |
-| Local deployment runbook | Source build, private setup, daemon verification, consumer Codex registration, hook/MCP recipes, smoke test, and troubleshooting | [`docs/LOCAL_DEPLOYMENT.md`](LOCAL_DEPLOYMENT.md) records the verified path and explicit gaps | Add release artifacts, upgrade/uninstall, backup/restore, and supported host installers |
+| Local deployment runbook | Source build, private setup, daemon verification, consumer Codex registration, hook/MCP recipes, smoke test, host upgrade, and stress evidence | [`docs/LOCAL_DEPLOYMENT.md`](LOCAL_DEPLOYMENT.md) records the reproducible path and a dated macOS host-install verification; the record is not release evidence | Add release artifacts, upgrade/uninstall, backup/restore, and supported host installers |
 | Platform lifecycle | macOS/Linux templates are present | No supported end-to-end installer yet; templates are manual recipes only | Implement and test LaunchAgent/systemd-user installation |
 
 The absence of a composed command is fail-closed: the binary reports
@@ -33,3 +33,7 @@ The runbook's service-manager section remains an integration recipe: `setup`
 registers the official JSON Codex hook, but does not start a daemon or install a
 service. A third-party deployment must preserve that distinction until the
 platform installers and end-to-end Codex runner test exist.
+
+The dated host-install record in [`docs/LOCAL_DEPLOYMENT.md`](LOCAL_DEPLOYMENT.md)
+does not close the remaining live-inference, provider-quality, full Codex
+session-runner, or release-artifact gaps.

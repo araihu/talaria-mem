@@ -448,6 +448,44 @@ If you stop copying the block before its final command, stop the background
 process and remove that exact root manually; never use a broad recursive delete
 against a home or workspace directory.
 
+## Verified host installation and stress evidence
+
+The current checkout was installed and exercised on a macOS arm64 host on
+2026-08-19 (local host date) with Go 1.26.6, Codex CLI 0.144.5, and source
+commit `76d7cd6` (`fix: accept historical migration journal targets`). This is
+operator evidence for one host, not release evidence.
+
+The existing `$HOME/.talaria-mem` root and LaunchAgent were upgraded in place.
+The upgrade preserved the root key, bearer token, and SQLite database, applied
+the new setup fingerprint, and left a second `setup codex --dry-run --json`
+with `changes: []`. The existing daemon ran on `127.0.0.1:7437`; `/healthz`,
+`status`, and `doctor` were healthy after the migration to schema target 4,
+with queue depth `0`, no running curation jobs, and matching FTS rows and
+content hashes. The `talaria_mem` MCP registration and unrelated Codex MCP
+configuration remained in place.
+
+The host checks included:
+
+- `make check` after the migration fix.
+- `go test -race -count=3 ./internal/curation ./internal/providers/codex ./internal/adapters/mcp ./internal/lifecycle`.
+- `sh scripts/check-codex-schema.sh`, with Codex CLI 0.144.5.
+- 100 concurrent `SessionStart` hook preflights, with no transcript or unknown-field leakage.
+- `UserPromptSubmit` preflight plus fail-closed cases for an unsupported event, duplicate JSON keys, and a payload over 1 MiB.
+- 20 serialized status checks and 20 serialized MCP proxy sessions; each session exposed all eight memory tools.
+
+A cold-start burst of one-shot MCP processes produced `maintenance lock is
+held` responses. The lock released normally; serialized retries then passed
+20/20. This is the fail-closed contention behavior, not a stuck lock. The
+stress-created one-shot processes were cleaned up individually, while the
+pre-existing Codex app-server process was left untouched.
+
+No prompt reached the enqueue threshold during this run, so no live provider
+inference or paid curation was triggered. The record therefore validates the
+local installation, lifecycle, hook boundary, and MCP transport; it does not
+claim provider-output quality or a full Codex session-runner test. On this host,
+replacing the executable also required an ad-hoc macOS signature to run at the
+existing path; that is a host workaround, not release signing.
+
 ## Troubleshooting
 
 | Symptom | Check first | Corrective action |
