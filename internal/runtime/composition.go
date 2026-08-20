@@ -65,6 +65,9 @@ func RunHelp(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	if err := commands.RegisterScanner(registry, &commands.ScannerCommands{}); err != nil {
 		return err
 	}
+	if err := commands.RegisterMCP(registry, commands.NewMCPCommands(nil)); err != nil {
+		return err
+	}
 	return cli.NewRoot(cli.RootConfig{Registry: registry, Stdout: stdout, Stderr: stderr}).Run(ctx, args)
 }
 

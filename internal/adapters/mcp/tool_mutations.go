@@ -17,6 +17,13 @@ type MutationService interface {
 	Forget(context.Context, application.MutationRequest) (application.MutationResult, error)
 }
 
+// GeneratedMutationService is intentionally narrower than the normal
+// mutation surface. The inline tool can only create server-assigned generated
+// trust with inline provenance; it cannot invoke a provider or choose trust.
+type GeneratedMutationService interface {
+	CreateGenerated(context.Context, application.GeneratedMutationRequest, application.GeneratedSource) (application.MutationResult, error)
+}
+
 func MutationToolDefinitions() []ToolDefinition {
 	return []ToolDefinition{
 		{Name: "memory_create", Description: "Create an unverified memory in one explicit workspace scope.", InputSchema: objectSchema(map[string]any{
@@ -54,6 +61,14 @@ func MutationToolDefinitions() []ToolDefinition {
 			"expected_revision": map[string]any{"type": "string", "format": "uuid"},
 			"idempotency_key":   map[string]any{"type": "string", "maxLength": 256},
 		}, []string{"memory_id", "expected_revision"})},
+		{Name: "memory_curate_inline", Description: "Create one server-assigned generated memory from an explicitly supplied candidate without provider inference.", InputSchema: objectSchema(map[string]any{
+			"workspace_id":     map[string]any{"type": "string", "minLength": 1, "maxLength": 256},
+			"kind":             map[string]any{"type": "string", "enum": []string{"state", "procedure", "failure"}},
+			"title":            map[string]any{"type": "string", "minLength": 1, "maxLength": domain.MaxTitleBytes},
+			"content":          map[string]any{"type": "string", "minLength": 1, "maxLength": domain.MaxContentBytes},
+			"tags":             map[string]any{"type": "array", "maxItems": domain.MaxTags, "items": map[string]any{"type": "string", "maxLength": domain.MaxTagBytes}},
+			"resolution_state": map[string]any{"type": "string", "enum": []string{"open", "resolved"}},
+		}, []string{"workspace_id", "kind", "title", "content"})},
 	}
 }
 
@@ -63,6 +78,27 @@ func AllToolDefinitions() []ToolDefinition {
 }
 
 func (server *Server) mutationTool(ctx context.Context, name string, raw json.RawMessage) (any, *rpcError) {
+	if name == "memory_curate_inline" {
+		if server.config.Generated == nil {
+			return nil, &rpcError{Code: -32002, Message: "inline curation unavailable"}
+		}
+		var input struct {
+			WorkspaceID     string                 `json:"workspace_id"`
+			Kind            domain.MemoryKind      `json:"kind"`
+			Title           string                 `json:"title"`
+			Content         string                 `json:"content"`
+			Tags            []string               `json:"tags"`
+			ResolutionState domain.ResolutionState `json:"resolution_state"`
+		}
+		if err := decodeToolArguments(raw, &input); err != nil || input.WorkspaceID == "" || input.Kind == "" || input.Title == "" || input.Content == "" {
+			return nil, &rpcError{Code: -32602, Message: "workspace, kind, title, and content are required"}
+		}
+		result, err := server.config.Generated.CreateGenerated(ctx, application.GeneratedMutationRequest{WorkspaceID: input.WorkspaceID, Kind: input.Kind, Title: input.Title, Content: input.Content, Tags: input.Tags, ResolutionState: input.ResolutionState}, application.GeneratedSourceInline)
+		if err != nil {
+			return nil, rpcDomainError(err)
+		}
+		return mutationResult(result), nil
+	}
 	if server.config.Mutator == nil {
 		return nil, &rpcError{Code: -32002, Message: "mutation service unavailable"}
 	}

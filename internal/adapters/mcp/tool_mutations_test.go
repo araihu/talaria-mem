@@ -17,6 +17,16 @@ type fakeMutator struct {
 	last application.MutationRequest
 }
 
+type fakeGenerated struct {
+	request application.GeneratedMutationRequest
+	source  application.GeneratedSource
+}
+
+func (generated *fakeGenerated) CreateGenerated(_ context.Context, request application.GeneratedMutationRequest, source application.GeneratedSource) (application.MutationResult, error) {
+	generated.request, generated.source = request, source
+	return application.MutationResult{MemoryID: "018f1f61-7b5c-7abc-8def-0123456789ab", RevisionID: "018f1f61-7b5c-7abc-8def-1123456789ab", WorkspaceID: request.WorkspaceID, Trust: domain.TrustGenerated, Lifecycle: domain.LifecycleActive}, nil
+}
+
 func (mutator *fakeMutator) Create(_ context.Context, request application.MutationRequest) (application.MutationResult, error) {
 	mutator.last = request
 	return application.MutationResult{MemoryID: "018f1f61-7b5c-7abc-8def-0123456789ab", RevisionID: "018f1f61-7b5c-7abc-8def-1123456789ab", WorkspaceID: request.WorkspaceID, Trust: domain.TrustUnverified, Lifecycle: domain.LifecycleActive}, nil
@@ -87,5 +97,39 @@ func TestMCPMutationCreateIsUnverifiedAndRejectsUnknownFields(t *testing.T) {
 	}
 	if strings.Contains(string(recorder.Body.Bytes()), `"content":"content"`) || strings.Contains(string(recorder.Body.Bytes()), `"title":"title"`) {
 		t.Fatal("mutation response leaked memory content")
+	}
+}
+
+func TestMCPInlineCurationAssignsGeneratedTrustAndRejectsOverrides(t *testing.T) {
+	generated := &fakeGenerated{}
+	token, err := security.GenerateBearerToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticator, err := security.NewAuthenticator(security.AuthConfig{Token: token, Host: "127.0.0.1:7437"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewServer(ServerConfig{Authenticator: authenticator, Generated: generated})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := mcpRequest(token, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_curate_inline","arguments":{"workspace_id":"w","kind":"procedure","title":"title","content":"content","trust":"verified"}}}`)
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if !strings.Contains(recorder.Body.String(), "workspace, kind, title, and content are required") {
+		t.Fatalf("trust override response=%s", recorder.Body.String())
+	}
+	request = mcpRequest(token, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory_curate_inline","arguments":{"workspace_id":"w","kind":"procedure","title":"title","content":"content"}}}`)
+	recorder = httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || strings.Contains(recorder.Body.String(), `"error"`) {
+		t.Fatalf("inline response=%s", recorder.Body.String())
+	}
+	if generated.source != application.GeneratedSourceInline || generated.request.WorkspaceID != "w" || generated.request.Kind != domain.MemoryKindProcedure {
+		t.Fatalf("generated request=%+v source=%q", generated.request, generated.source)
+	}
+	if !strings.Contains(recorder.Body.String(), `"trust":"generated"`) {
+		t.Fatalf("generated trust missing: %s", recorder.Body.String())
 	}
 }

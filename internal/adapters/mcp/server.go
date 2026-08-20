@@ -71,6 +71,7 @@ type ServerConfig struct {
 	Authenticator *security.Authenticator
 	Reader        ReadService
 	Mutator       MutationService
+	Generated     GeneratedMutationService
 	Guard         Guard
 }
 
@@ -231,7 +232,7 @@ func isKnownTool(name string) bool {
 		return true
 	}
 	switch name {
-	case "memory_create", "memory_update", "memory_pin", "memory_forget":
+	case "memory_create", "memory_update", "memory_pin", "memory_forget", "memory_curate_inline":
 		return true
 	default:
 		return false
@@ -279,7 +280,7 @@ func (server *Server) callTool(ctx context.Context, request *http.Request, raw j
 	if len(raw) == 0 || json.Unmarshal(raw, &params) != nil || params.Name == "" {
 		return nil, &rpcError{Code: -32602, Message: "tool name is required"}
 	}
-	if params.Name != "memory_search" && params.Name != "memory_get" && params.Name != "memory_explain" && params.Name != "memory_create" && params.Name != "memory_update" && params.Name != "memory_pin" && params.Name != "memory_forget" {
+	if params.Name != "memory_search" && params.Name != "memory_get" && params.Name != "memory_explain" && params.Name != "memory_create" && params.Name != "memory_update" && params.Name != "memory_pin" && params.Name != "memory_forget" && params.Name != "memory_curate_inline" {
 		return nil, &rpcError{Code: -32601, Message: "tool not found"}
 	}
 	if (params.Name == "memory_search" || params.Name == "memory_get" || params.Name == "memory_explain") && server.config.Reader == nil {

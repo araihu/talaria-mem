@@ -111,6 +111,7 @@ func NewBootstrapCommand(stdout, stderr io.Writer) *cobra.Command {
 		{name: "token", description: "manage local bearer token"},
 		{name: "db", description: "database maintenance"},
 		{name: "scanner", description: "scanner rule maintenance"},
+		{name: "mcp", description: "MCP client integrations"},
 	} {
 		_ = registry.Register(Command{
 			Name:        specification.name,
