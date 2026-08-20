@@ -2,11 +2,49 @@ package lifecycle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
+
+// CurationProviderStatus contains only topology and health metadata. It is
+// deliberately incapable of carrying credentials, prompts, locators, or
+// provider response text.
+type CurationProviderStatus struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Configured bool   `json:"configured"`
+	Available  bool   `json:"available"`
+}
+
+// CurationHealth is the safe observability contract shared by status and
+// doctor. Queue age is represented as seconds so no source payload or
+// timestamp-derived path can leak through diagnostics.
+type CurationHealth struct {
+	Enabled             bool                     `json:"enabled"`
+	Degraded            bool                     `json:"degraded"`
+	Providers           []CurationProviderStatus `json:"providers,omitempty"`
+	QueueDepth          int64                    `json:"queue_depth"`
+	OldestJobAgeSeconds int64                    `json:"oldest_job_age_seconds,omitempty"`
+	Running             int64                    `json:"running"`
+	LastErrorClass      string                   `json:"last_error_class,omitempty"`
+}
+
+// String is used by bounded diagnostics and tests. Marshaling this closed
+// value cannot expose provider secrets because the type has no such fields.
+func (health CurationHealth) String() string {
+	value, err := json.Marshal(health)
+	if err != nil {
+		return `{"degraded":true,"last_error_class":"persistence"}`
+	}
+	return string(value)
+}
+
+type CurationHealthSource interface {
+	CurationStatus(context.Context) (CurationHealth, error)
+}
 
 type StorageStatus struct {
 	DatabasePath  string `json:"database_path"`
@@ -23,12 +61,14 @@ type StatusReport struct {
 	Ready     bool            `json:"ready"`
 	Readiness ReadinessReport `json:"readiness"`
 	Storage   StorageStatus   `json:"storage"`
+	Curation  CurationHealth  `json:"curation"`
 }
 
 type StatusService struct {
 	Readiness *Readiness
 	Database  string
 	Freelist  func(context.Context) (int64, error)
+	Curation  CurationHealthSource
 }
 
 func NewStatusService(readiness *Readiness, database string) *StatusService {
@@ -62,7 +102,16 @@ func (service *StatusService) Status(ctx context.Context) (StatusReport, error) 
 			storage.FreelistPages = value
 		}
 	}
-	return StatusReport{Version: "talaria.status.v1", Ready: readiness.Ready, Readiness: readiness, Storage: storage}, nil
+	health := CurationHealth{}
+	if service.Curation != nil {
+		value, err := service.Curation.CurationStatus(ctx)
+		if err != nil {
+			health = CurationHealth{Degraded: true, LastErrorClass: "persistence"}
+		} else {
+			health = value
+		}
+	}
+	return StatusReport{Version: "talaria.status.v1", Ready: readiness.Ready, Readiness: readiness, Storage: storage, Curation: health}, nil
 }
 
 func (service *StatusService) Check(ctx context.Context) (StatusReport, error) {

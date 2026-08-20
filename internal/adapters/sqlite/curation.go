@@ -19,6 +19,15 @@ type CurationStore struct {
 	database *DB
 }
 
+// CurationQueueHealth is intentionally smaller than a job. It contains only
+// aggregate queue metadata safe for status and doctor output.
+type CurationQueueHealth struct {
+	QueueDepth     int64
+	Running        int64
+	OldestAt       time.Time
+	LastErrorClass curation.ErrorClass
+}
+
 func NewCurationStore(database *DB) *CurationStore {
 	return &CurationStore{database: database}
 }
@@ -251,6 +260,42 @@ func (store *CurationStore) EndSession(ctx context.Context, sessionDigest []byte
 		return err
 	}
 	return domain.MapSQLiteError(queries.DeleteCurationSessionCounter(ctx, cloneBytes(sessionDigest)))
+}
+
+// Health reads aggregate queue metadata without selecting payload, workspace,
+// session digest, provider credential, or candidate text columns.
+func (store *CurationStore) Health(ctx context.Context, now time.Time) (CurationQueueHealth, error) {
+	if store == nil || store.database == nil || store.database.sql == nil {
+		return CurationQueueHealth{}, domain.NewError(domain.CodeUnavailable, "SQLite curation store unavailable", true)
+	}
+	now = now.UTC()
+	var health CurationQueueHealth
+	var oldest, lastError sql.NullString
+	err := store.database.sql.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN state IN ('pending', 'retry_wait') THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN state = 'running' THEN 1 ELSE 0 END), 0),
+			MIN(CASE WHEN state IN ('pending', 'retry_wait', 'running') THEN created_at END),
+			COALESCE((SELECT safe_error_class FROM curation_jobs WHERE safe_error_class <> '' ORDER BY updated_at DESC LIMIT 1), '')
+		FROM curation_jobs
+		WHERE expires_at > ? AND state IN ('pending', 'retry_wait', 'running')`, formatTimestamp(now)).Scan(&health.QueueDepth, &health.Running, &oldest, &lastError)
+	if err != nil {
+		return CurationQueueHealth{}, domain.MapSQLiteError(err)
+	}
+	if oldest.Valid && oldest.String != "" {
+		value, err := parseTimestamp(oldest.String)
+		if err != nil {
+			return CurationQueueHealth{}, domain.NewError(domain.CodeUnavailable, "curation queue metadata is invalid", false)
+		}
+		health.OldestAt = value
+	}
+	if lastError.Valid {
+		class := curation.ErrorClass(lastError.String)
+		if class.Valid() {
+			health.LastErrorClass = class
+		}
+	}
+	return health, nil
 }
 
 func (store *CurationStore) queries() (*sqlc.Queries, error) {

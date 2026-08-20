@@ -66,6 +66,48 @@ func TestCompositionRequiresExistingRootKeyAndToken(t *testing.T) {
 	}
 }
 
+func TestCompositionReportsConfiguredCurationProviderSafely(t *testing.T) {
+	environment := testEnvironment(t)
+	if _, err := security.CreateRootKey(filepath.Join(environment.ConfigDir, "root.key")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := security.CreateBearerToken(filepath.Join(environment.ConfigDir, "token")); err != nil {
+		t.Fatal(err)
+	}
+	providerConfig := `version = 1
+enabled = true
+chain = ["local"]
+
+[providers.local]
+type = "openai_compatible"
+base_url = "http://127.0.0.1:11434/v1"
+model = "local-model"
+timeout = "1s"
+`
+	if err := os.WriteFile(filepath.Join(environment.ConfigDir, "providers.toml"), []byte(providerConfig), lifecycle.ManagedFileMode.Perm()); err != nil {
+		t.Fatal(err)
+	}
+	composition, err := New(context.Background(), Config{Environment: environment, Stdout: io.Discard, Stderr: io.Discard})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = composition.Close() })
+	report, err := composition.Status.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Ready || !report.Curation.Enabled || report.Curation.Degraded || len(report.Curation.Providers) != 1 {
+		t.Fatalf("unexpected status: %+v", report)
+	}
+	provider := report.Curation.Providers[0]
+	if provider.Name != "local" || provider.Type != "openai_compatible" || !provider.Configured || !provider.Available {
+		t.Fatalf("unexpected provider status: %+v", provider)
+	}
+	if strings.Contains(report.Curation.String(), "local-model") {
+		t.Fatal("provider model leaked into curation diagnostics")
+	}
+}
+
 func TestCompositionSessionStartListsBoundVerifiedMemory(t *testing.T) {
 	environment := testEnvironment(t)
 	if _, err := security.CreateRootKey(filepath.Join(environment.ConfigDir, "root.key")); err != nil {

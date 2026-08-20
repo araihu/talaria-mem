@@ -31,6 +31,7 @@ type DoctorReport struct {
 	Readiness ReadinessReport  `json:"readiness"`
 	Paths     []PathDiagnostic `json:"paths"`
 	FTS       *FTSReport       `json:"fts,omitempty"`
+	Curation  CurationHealth   `json:"curation"`
 }
 
 type FTSReport struct {
@@ -65,6 +66,7 @@ type DoctorConfig struct {
 	DatabasePath string
 	WALPath      string
 	SHMPath      string
+	Curation     CurationHealthSource
 }
 
 type Doctor struct{ config DoctorConfig }
@@ -118,6 +120,17 @@ func (doctor *Doctor) Check(ctx context.Context) (DoctorReport, error) {
 		}
 		report.FTS = &fts
 		if fts.RepairRequired {
+			report.Healthy = false
+		}
+	}
+	if doctor.config.Curation != nil {
+		health, err := doctor.config.Curation.CurationStatus(ctx)
+		if err != nil {
+			report.Curation = CurationHealth{Degraded: true, LastErrorClass: "persistence"}
+		} else {
+			report.Curation = health
+		}
+		if report.Curation.Degraded {
 			report.Healthy = false
 		}
 	}

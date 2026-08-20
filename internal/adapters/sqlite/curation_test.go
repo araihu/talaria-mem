@@ -130,6 +130,36 @@ func TestCurationStoreSessionCounterExpiryAndEnd(t *testing.T) {
 	}
 }
 
+func TestCurationStoreHealthReturnsOnlyQueueMetadata(t *testing.T) {
+	database := openTestDB(t)
+	workspaceID := seedCurationWorkspace(t, database, "health")
+	store := NewCurationStore(database)
+	now := time.Now().UTC()
+	if _, _, err := store.Enqueue(context.Background(), curation.Job{ID: "health-old", WorkspaceID: workspaceID, Reason: curation.ReasonPeriodic, SessionDigest: []byte{1}, SourceWatermark: 1, ThreadLocatorCiphertext: []byte("locator-canary"), SnapshotCiphertext: []byte("prompt-canary"), ExpiresAt: now.Add(time.Hour), CreatedAt: now.Add(-2 * time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, found, err := store.ClaimNext(context.Background(), now)
+	if err != nil || !found {
+		t.Fatalf("claim = %+v found=%v err=%v", claimed, found, err)
+	}
+	if err := store.Retry(context.Background(), claimed.ID, 1, now.Add(time.Minute), curation.ErrorTimeout); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Enqueue(context.Background(), curation.Job{ID: "health-new", WorkspaceID: workspaceID, Reason: curation.ReasonPreCompact, SessionDigest: []byte{2}, SourceWatermark: 2, ThreadLocatorCiphertext: []byte("other-locator"), SnapshotCiphertext: []byte("other-prompt"), ExpiresAt: now.Add(time.Hour), CreatedAt: now.Add(-time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	health, err := store.Health(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if health.QueueDepth != 2 || health.Running != 0 || health.LastErrorClass != curation.ErrorTimeout {
+		t.Fatalf("unexpected health: %+v", health)
+	}
+	if health.OldestAt.IsZero() || now.Sub(health.OldestAt) < 2*time.Minute {
+		t.Fatalf("oldest job age missing: %+v", health)
+	}
+}
+
 func seedCurationWorkspace(t *testing.T, database *DB, suffix string) string {
 	t.Helper()
 	workspaceID := "018f1f61-7b5c-7abc-8def-1123456789" + suffix[:2]

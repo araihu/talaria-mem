@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,10 +20,12 @@ import (
 	"github.com/guilhermecastro/talaria-mem/internal/application"
 	"github.com/guilhermecastro/talaria-mem/internal/cli"
 	"github.com/guilhermecastro/talaria-mem/internal/cli/commands"
+	"github.com/guilhermecastro/talaria-mem/internal/curation"
 	"github.com/guilhermecastro/talaria-mem/internal/lifecycle"
 	"github.com/guilhermecastro/talaria-mem/internal/maintenance"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
 	"github.com/guilhermecastro/talaria-mem/internal/projection"
+	providerconfig "github.com/guilhermecastro/talaria-mem/internal/providers/config"
 	"github.com/guilhermecastro/talaria-mem/internal/retrieval"
 	"github.com/guilhermecastro/talaria-mem/internal/scanner"
 	"github.com/guilhermecastro/talaria-mem/internal/security"
@@ -32,12 +35,13 @@ import (
 const DefaultAddress = "127.0.0.1:7437"
 
 type Config struct {
-	Environment    lifecycle.Environment
-	Address        string
-	Stdout         io.Writer
-	Stderr         io.Writer
-	BinaryPath     string
-	CodexHooksPath string
+	Environment         lifecycle.Environment
+	Address             string
+	ProviderEnvironment map[string]string
+	Stdout              io.Writer
+	Stderr              io.Writer
+	BinaryPath          string
+	CodexHooksPath      string
 }
 
 // RunHelp builds the same Cobra command tree as the runtime without opening
@@ -72,22 +76,25 @@ func RunHelp(ctx context.Context, args []string, stdout, stderr io.Writer) error
 }
 
 type Composition struct {
-	Environment lifecycle.Environment
-	Address     string
-	Root        *cli.Root
-	Daemon      *lifecycle.Daemon
-	HTTP        *httpadapter.Server
-	MCP         *mcp.Server
-	DB          *sqlite.DB
-	Memory      *application.MemoryService
-	Searcher    *retrieval.Searcher
-	Projector   *projection.Worker
-	Readiness   *lifecycle.Readiness
-	Setup       *lifecycle.SetupService
-	Doctor      *lifecycle.Doctor
-	Status      *lifecycle.StatusService
-	Token       *lifecycle.TokenService
-	closeOnce   sync.Once
+	Environment     lifecycle.Environment
+	Address         string
+	Root            *cli.Root
+	Daemon          *lifecycle.Daemon
+	HTTP            *httpadapter.Server
+	MCP             *mcp.Server
+	DB              *sqlite.DB
+	Memory          *application.MemoryService
+	Searcher        *retrieval.Searcher
+	Projector       *projection.Worker
+	Readiness       *lifecycle.Readiness
+	Setup           *lifecycle.SetupService
+	Doctor          *lifecycle.Doctor
+	Status          *lifecycle.StatusService
+	Token           *lifecycle.TokenService
+	CurationStore   *sqlite.CurationStore
+	CurationWorker  *curation.Worker
+	CurationClosers []func() error
+	closeOnce       sync.Once
 }
 
 // New constructs one explicit runtime graph.  All concrete providers are
@@ -145,9 +152,41 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	}
 	repository := sqlite.NewRepository(database)
 	memory := application.NewMemoryService(repository, scan, clock, deriver)
+	curationStore := sqlite.NewCurationStore(database)
+	curationCipher, err := security.NewCurationCipher(deriver)
+	if err != nil {
+		_ = database.Close()
+		return nil, err
+	}
+	providerEnvironment := snapshotProviderEnvironment(configuration.ProviderEnvironment)
+	providerConfiguration, providerConfigErr := providerconfig.Load(filepath.Join(environment.ConfigDir, "providers.toml"), providerEnvironment)
+	router := curation.Router{Enabled: false}
+	var curationClosers []func() error
+	if providerConfigErr == nil {
+		router, curationClosers, providerConfigErr = buildRouter(providerConfiguration, scan)
+	}
+	// Invalid provider topology degrades only background curation; local reads,
+	// inline MCP, and prompt recall remain available.
+	if providerConfigErr != nil {
+		router = curation.Router{Enabled: false}
+	}
+	var snapshotSource *runtimeSnapshotSource
+	var enqueueService *curation.EnqueueService
+	if providerConfigErr == nil && providerConfiguration.Enabled {
+		hostProvider := providerconfig.Default().Providers["codex"]
+		if configured, ok := providerConfiguration.Providers["codex"]; ok {
+			hostProvider = configured
+		}
+		snapshotSource = newRuntimeSnapshotSource(hostProvider, scan)
+		enqueueService = curation.NewEnqueueServiceWithClock(snapshotSource, scan, curationCipher, curationStore, clock)
+		curationClosers = append(curationClosers, snapshotSource.Close)
+	}
+	curationHealth := newCurationHealthSource(providerConfiguration, providerConfigErr, curationStore, snapshotSource, func() time.Time { return clock.Now() })
+	worker := curation.NewWorker(curationStore, curationCipher, router, memory, deriver, curation.WorkerConfig{})
 	usage := retrieval.NewUsageLedger(clock, deriver)
 	index := sqlite.NewIndex(database)
 	searcher := retrieval.NewSearcher(index, usage, memory.Guard, clock)
+	recall := codex.NewRecallService(index, memory.Guard, clock)
 	projectionStore := sqlite.NewProjectionStore(database, projectionDir)
 	projector := projection.NewWorker(projectionStore, projectionStore, filesystem.NewManagedFileStore(policy), memory.Guard, clock)
 
@@ -210,12 +249,13 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 		Guard: memory.Guard,
 		Clock: clock,
 	})
-	httpServer, err := httpadapter.NewServer(httpadapter.ServerConfig{Authenticator: authenticator, SessionStart: httpSessionStarter{service: session}, Reader: httpadapter.ServiceReader{Searcher: searcher, Memory: memory}, Guard: memory.Guard, Readiness: readiness})
+	hooks := codex.NewCurationHooks(codex.CurationHookConfig{Resolver: resolver, Recall: recall, Enqueue: enqueueService, Counter: curationStore, Digest: curationCipher, Clock: func() time.Time { return clock.Now() }})
+	httpServer, err := httpadapter.NewServer(httpadapter.ServerConfig{Authenticator: authenticator, SessionStart: httpSessionStarter{service: session}, CurationHooks: hooks, Reader: httpadapter.ServiceReader{Searcher: searcher, Memory: memory}, Guard: memory.Guard, Readiness: readiness})
 	if err != nil {
 		_ = database.Close()
 		return nil, err
 	}
-	mcpServer, err := mcp.NewServer(mcp.ServerConfig{Authenticator: authenticator, Reader: mcp.ServiceReader{Searcher: searcher, Memory: memory}, Mutator: memory, Guard: memory.Guard})
+	mcpServer, err := mcp.NewServer(mcp.ServerConfig{Authenticator: authenticator, Reader: mcp.ServiceReader{Searcher: searcher, Memory: memory}, Mutator: memory, Generated: memory, Guard: memory.Guard})
 	if err != nil {
 		_ = database.Close()
 		return nil, err
@@ -230,6 +270,7 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 		return nil, err
 	}
 	status := lifecycle.NewStatusService(readiness, databasePath)
+	status.Curation = curationHealth
 	status.Freelist = database.FreelistPages
 	ftsReceipts, err := lifecycle.NewFileFTSRepairReceiptStore(receiptStore.Dir, backupKey)
 	if err != nil {
@@ -246,8 +287,9 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 		DatabasePath: databasePath,
 		WALPath:      databasePath + "-wal",
 		SHMPath:      databasePath + "-shm",
+		Curation:     curationHealth,
 	})
-	setupRequest := lifecycle.SetupRequest{ConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"), HookPath: filepath.Join(environment.ConfigDir, "session-start.sh"), CodexHooksPath: resolveCodexHooksPath(configuration.CodexHooksPath, environment), TokenPath: tokenPath, BinaryPath: configuration.BinaryPath, Endpoint: address}
+	setupRequest := lifecycle.SetupRequest{ConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"), TalariaConfigPath: filepath.Join(environment.ConfigDir, "codex.toml"), CodexConfigPath: resolveCodexConfigPath(environment), HookPath: resolveCodexHookPath(environment), CodexHooksPath: resolveCodexHooksPath(configuration.CodexHooksPath, environment), ProviderConfigPath: filepath.Join(environment.ConfigDir, "providers.toml"), TokenPath: tokenPath, BinaryPath: configuration.BinaryPath, Endpoint: address}
 	if setupRequest.BinaryPath == "" {
 		setupRequest.BinaryPath, _ = os.Executable()
 	}
@@ -257,13 +299,19 @@ func New(ctx context.Context, configuration Config) (*Composition, error) {
 	_ = commands.RegisterDaemon(registry, commands.NewDaemonCommands(daemon))
 	_ = commands.RegisterDoctor(registry, commands.NewDoctorCommands(doctor))
 	_ = commands.RegisterSetup(registry, commands.NewSetupCommands(setup, setupRequest))
+	proxy, proxyErr := mcp.NewProxy(mcp.ProxyConfig{Endpoint: "http://" + address + "/mcp", TokenPath: tokenPath, Input: os.Stdin, Output: os.Stdout})
+	if proxyErr == nil {
+		_ = commands.RegisterMCP(registry, commands.NewMCPCommands(proxy))
+	} else {
+		_ = commands.RegisterMCP(registry, commands.NewMCPCommands(nil))
+	}
 	_ = commands.RegisterStatus(registry, commands.NewStatusCommands(status))
 	_ = commands.RegisterToken(registry, commands.NewTokenCommands(lifecycle.NewTokenService(tokenPath)))
 	_ = commands.RegisterScanner(registry, &commands.ScannerCommands{})
 	memoryCore := cli.NewMemoryCore(cli.ServiceClient{Memory: memory, Retrieval: searcher})
 	workspaceCommands := cli.NewWorkspaceCommands(cli.StoreClient{Store: store, Resolver: workspace.NewResolver(store, func() time.Time { return clock.Now() }), Binder: workspace.NewBinder(store, func() time.Time { return clock.Now() }), Merge: workspace.NewMergeService(store, func() time.Time { return clock.Now() }), ListFn: store.ListWorkspaces, Clock: func() time.Time { return clock.Now() }})
 	root := cli.NewRoot(cli.RootConfig{Registry: registry, Memory: memoryCore, Workspace: workspaceCommands, Projection: cli.NewProjectionCommands(projector), Stdout: configuration.Stdout, Stderr: configuration.Stderr})
-	return &Composition{Environment: environment, Address: address, Root: root, Daemon: daemon, HTTP: httpServer, MCP: mcpServer, DB: database, Memory: memory, Searcher: searcher, Projector: projector, Readiness: readiness, Setup: setup, Doctor: doctor, Status: status, Token: lifecycle.NewTokenService(tokenPath)}, nil
+	return &Composition{Environment: environment, Address: address, Root: root, Daemon: daemon, HTTP: httpServer, MCP: mcpServer, DB: database, Memory: memory, Searcher: searcher, Projector: projector, Readiness: readiness, Setup: setup, Doctor: doctor, Status: status, Token: lifecycle.NewTokenService(tokenPath), CurationStore: curationStore, CurationWorker: worker, CurationClosers: curationClosers}, nil
 }
 
 // RunSetup composes only the first-install command graph. It deliberately
@@ -289,12 +337,15 @@ func RunSetup(ctx context.Context, args []string, configuration Config) error {
 		binaryPath, _ = os.Executable()
 	}
 	request := lifecycle.SetupRequest{
-		ConfigPath:     filepath.Join(environment.ConfigDir, "codex.toml"),
-		HookPath:       filepath.Join(environment.ConfigDir, "session-start.sh"),
-		CodexHooksPath: resolveCodexHooksPath(configuration.CodexHooksPath, environment),
-		TokenPath:      filepath.Join(environment.ConfigDir, "token"),
-		BinaryPath:     binaryPath,
-		Endpoint:       configuration.Address,
+		ConfigPath:         filepath.Join(environment.ConfigDir, "codex.toml"),
+		TalariaConfigPath:  filepath.Join(environment.ConfigDir, "codex.toml"),
+		CodexConfigPath:    resolveCodexConfigPath(environment),
+		HookPath:           resolveCodexHookPath(environment),
+		CodexHooksPath:     resolveCodexHooksPath(configuration.CodexHooksPath, environment),
+		ProviderConfigPath: filepath.Join(environment.ConfigDir, "providers.toml"),
+		TokenPath:          filepath.Join(environment.ConfigDir, "token"),
+		BinaryPath:         binaryPath,
+		Endpoint:           configuration.Address,
 	}
 	if request.Endpoint == "" {
 		request.Endpoint = DefaultAddress
@@ -330,9 +381,59 @@ func resolveCodexHooksPath(override string, environment lifecycle.Environment) s
 	return filepath.Join(home, ".codex", "hooks.json")
 }
 
+func resolveCodexConfigPath(environment lifecycle.Environment) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	defaultEnvironment, err := lifecycle.DefaultEnvironment(home)
+	if err != nil || filepath.Clean(defaultEnvironment.ConfigDir) != filepath.Clean(environment.ConfigDir) {
+		return ""
+	}
+	return filepath.Join(home, ".codex", "config.toml")
+}
+
+func resolveCodexHookPath(environment lifecycle.Environment) string {
+	if resolveCodexConfigPath(environment) == "" {
+		return filepath.Join(environment.ConfigDir, "session-start.sh")
+	}
+	return filepath.Join(environment.ConfigDir, "codex-hook.sh")
+}
+
+func snapshotProviderEnvironment(values map[string]string) map[string]string {
+	if values != nil {
+		copyValues := make(map[string]string, len(values))
+		for key, value := range values {
+			copyValues[key] = value
+		}
+		return copyValues
+	}
+	copyValues := make(map[string]string)
+	for _, item := range os.Environ() {
+		key, value, found := strings.Cut(item, "=")
+		if found {
+			copyValues[key] = value
+		}
+	}
+	return copyValues
+}
+
 func (composition *Composition) Run(ctx context.Context, args []string) error {
 	if composition == nil || composition.Root == nil {
 		return errors.New("runtime composition unavailable")
+	}
+	if len(args) > 0 && args[0] == "daemon" && composition.CurationWorker != nil {
+		workerContext, cancel := context.WithCancel(ctx)
+		defer cancel()
+		workerDone := make(chan struct{})
+		go func() {
+			_ = composition.CurationWorker.Run(workerContext)
+			close(workerDone)
+		}()
+		defer func() {
+			_ = composition.CurationWorker.Close()
+			<-workerDone
+		}()
 	}
 	return composition.Root.Run(ctx, args)
 }
@@ -343,6 +444,12 @@ func (composition *Composition) Close() error {
 	}
 	var err error
 	composition.closeOnce.Do(func() {
+		if composition.CurationWorker != nil {
+			err = composition.CurationWorker.Close()
+		}
+		for _, closeProvider := range composition.CurationClosers {
+			err = errors.Join(err, closeProvider())
+		}
 		if composition.Daemon != nil {
 			err = composition.Daemon.Stop(context.Background())
 		}
