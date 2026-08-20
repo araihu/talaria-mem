@@ -1343,11 +1343,16 @@ func validateMigrationJournalRow(index int, types [13]string, values []any) erro
 		return fmt.Errorf("migration_journal row %d has invalid run_id", index)
 	}
 	target, err := migrationJournalInteger(values[2], "target_version")
-	if err != nil || target != int64(embeddedMigrationTarget) {
+	// Journal rows are append-only evidence.  Rows written by an older
+	// binary legitimately retain that binary's target while a later binary
+	// upgrades the same database.  Accept historical targets up to the
+	// embedded target, but never accept zero, a future target, or a row whose
+	// current schema version is ahead of the run it records.
+	if err != nil || target <= 0 || target > int64(embeddedMigrationTarget) {
 		return fmt.Errorf("migration_journal row %d has invalid target_version", index)
 	}
 	current, err := migrationJournalInteger(values[3], "current_version")
-	if err != nil || current <= 0 || current > int64(embeddedMigrationTarget) {
+	if err != nil || current <= 0 || current > target {
 		return fmt.Errorf("migration_journal row %d has invalid current_version", index)
 	}
 	failed, failedPresent, err := migrationJournalNullableInteger(values[4], "failed_version")

@@ -209,6 +209,69 @@ func TestMigrationRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMigrationUpgradeAcceptsHistoricalJournalTarget(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "historical-target.db")
+	database, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	for _, name := range []string{
+		"000001_core.up.sql",
+		"000002_usage_security.up.sql",
+		"000003_maintenance.up.sql",
+	} {
+		contents, err := db.Migrations.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.Exec(string(contents)); err != nil {
+			t.Fatalf("seed %s: %v", name, err)
+		}
+	}
+	if err := ensureCanonicalMigrationTable(context.Background(), database); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec("UPDATE schema_migrations SET version = 3, dirty = 0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := setSQLiteUserVersion(context.Background(), database, 3); err != nil {
+		t.Fatal(err)
+	}
+	fingerprint, err := migrationSchemaFingerprint(context.Background(), database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := database.Exec(`
+		INSERT INTO migration_journal(
+			run_id, target_version, current_version, completed_version,
+			failure_stage, schema_fingerprint, dirty, safe_error, started_at, updated_at
+		) VALUES ('historical-migration', 3, 3, 3, '', ?, 0, '', ?, ?)`, fingerprint, timestamp, timestamp); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := applyMigrations(context.Background(), database); err != nil {
+		t.Fatalf("upgrade rejected historical journal target: %v", err)
+	}
+	var version int
+	var dirty bool
+	if err := database.QueryRow("SELECT version, dirty FROM schema_migrations").Scan(&version, &dirty); err != nil {
+		t.Fatal(err)
+	}
+	if version != int(embeddedMigrationTarget) || dirty {
+		t.Fatalf("migration authority = version %d dirty %v", version, dirty)
+	}
+	var rowCount, historicalCount int
+	if err := database.QueryRow("SELECT count(*), sum(target_version = ?) FROM migration_journal", 3).Scan(&rowCount, &historicalCount); err != nil {
+		t.Fatal(err)
+	}
+	if rowCount == 0 || historicalCount == 0 {
+		t.Fatalf("historical journal evidence was not preserved: rows=%d historical=%d", rowCount, historicalCount)
+	}
+}
+
 func TestMigrationRoundTripMigrationJournalOrdering(t *testing.T) {
 	database, err := sql.Open("sqlite", "file:"+t.TempDir()+"/ordering.db")
 	if err != nil {
