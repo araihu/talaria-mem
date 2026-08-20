@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/guilhermecastro/talaria-mem/internal/adapters/codex"
 	"github.com/guilhermecastro/talaria-mem/internal/application"
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
@@ -19,12 +20,12 @@ import (
 )
 
 const (
-	HealthVersion        = "talaria.health.v1"
-	ReadinessVersion     = "talaria.ready.v1"
-	SessionStartVersion  = "talaria.session-start.v1"
-	SearchVersion        = "talaria.memory-search.v1"
-	maxSessionIDBytes    = 256
-	maxWorkingDirBytes   = 512
+	HealthVersion       = "talaria.health.v1"
+	ReadinessVersion    = "talaria.ready.v1"
+	SessionStartVersion = "talaria.session-start.v1"
+	SearchVersion       = "talaria.memory-search.v1"
+	maxSessionIDBytes   = 256
+	maxWorkingDirBytes  = 512
 )
 
 // SessionStarter is implemented by the T11 context-selection service. T10
@@ -32,6 +33,13 @@ const (
 // precedence rules.
 type SessionStarter interface {
 	SessionStart(context.Context, SessionStartRequest) (SessionStartResponse, error)
+}
+
+// CurationHooker handles the three asynchronous Codex hook events. The
+// adapter keeps parsing and authentication here while the Codex package owns
+// cadence, recall, and encrypted enqueue policy.
+type CurationHooker interface {
+	Handle(context.Context, codex.HookEvent) (codex.HookResponse, error)
 }
 
 // ReadService is the verified, scanner-gated read seam shared by HTTP and
@@ -84,6 +92,7 @@ type ContentGuard interface {
 type ServerConfig struct {
 	Authenticator *security.Authenticator
 	SessionStart  SessionStarter
+	CurationHooks CurationHooker
 	Reader        ReadService
 	Guard         ContentGuard
 	Readiness     ReadinessChecker
@@ -107,6 +116,9 @@ func NewServer(config ServerConfig) (*Server, error) {
 	secureRoutes := http.NewServeMux()
 	secureRoutes.HandleFunc(ReadinessPath, server.handleReadiness)
 	secureRoutes.HandleFunc(SessionStartPath, server.handleSessionStart)
+	secureRoutes.HandleFunc(UserPromptSubmitPath, server.handleUserPromptSubmit)
+	secureRoutes.HandleFunc(PreCompactPath, server.handlePreCompact)
+	secureRoutes.HandleFunc(SessionEndPath, server.handleSessionEnd)
 	secureRoutes.HandleFunc("/control/v1/memory/search", server.handleSearch)
 	secureRoutes.HandleFunc("/control/v1/memory/", server.handleMemory)
 	server.secure = Middleware(config.Authenticator, secureRoutes)
@@ -225,6 +237,47 @@ func (server *Server) handleSessionStart(writer http.ResponseWriter, request *ht
 		AdditionalContext: additionalContext,
 	}
 	writeJSON(writer, http.StatusOK, result)
+}
+
+func (server *Server) handleUserPromptSubmit(writer http.ResponseWriter, request *http.Request) {
+	server.handleCurationHook(writer, request, codex.HookUserPromptSubmit)
+}
+
+func (server *Server) handlePreCompact(writer http.ResponseWriter, request *http.Request) {
+	server.handleCurationHook(writer, request, codex.HookPreCompact)
+}
+
+func (server *Server) handleSessionEnd(writer http.ResponseWriter, request *http.Request) {
+	server.handleCurationHook(writer, request, codex.HookSessionEnd)
+}
+
+func (server *Server) handleCurationHook(writer http.ResponseWriter, request *http.Request, expected string) {
+	if request.Method != http.MethodPost {
+		writeError(writer, &RequestError{Status: http.StatusMethodNotAllowed, Code: domain.CodeValidation, Message: "method not allowed"})
+		return
+	}
+	if server.config.CurationHooks == nil {
+		writeError(writer, domain.NewError(domain.CodeUnavailable, "curation hook unavailable", true))
+		return
+	}
+	event, err := codex.DecodeHookEvent(request.Body)
+	if err != nil {
+		writeError(writer, err)
+		return
+	}
+	if event.HookName != expected {
+		writeError(writer, domain.NewError(domain.CodeValidation, "hook event does not match endpoint", false))
+		return
+	}
+	response, err := server.config.CurationHooks.Handle(request.Context(), event)
+	if err != nil {
+		writeError(writer, err)
+		return
+	}
+	if response.Version == "" {
+		response.Version = codex.CurationHookResponseVersion
+	}
+	writeJSON(writer, http.StatusOK, response)
 }
 
 // sessionStartAdditionalContext keeps the transport response useful to

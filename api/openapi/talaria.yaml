@@ -74,6 +74,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /control/v1/user-prompt-submit:
+    post:
+      operationId: userPromptSubmit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurationHookRequest'
+      responses:
+        '200':
+          description: Bounded prompt recall and asynchronous curation acknowledgement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationHookResponse'
+  /control/v1/pre-compact:
+    post:
+      operationId: preCompact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurationHookRequest'
+      responses:
+        '200':
+          description: Asynchronous pre-compaction curation acknowledgement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationHookResponse'
+  /control/v1/session-end:
+    post:
+      operationId: sessionEnd
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurationHookRequest'
+      responses:
+        '200':
+          description: Asynchronous session-end curation acknowledgement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationHookResponse'
   /control/v1/memory/search:
     post:
       operationId: memorySearch
@@ -201,6 +249,51 @@ components:
         warning: { type: string }
         next_cursor: { type: string }
         hookSpecificOutput: { $ref: '#/components/schemas/SessionStartHookSpecificOutput' }
+    CurationHookRequest:
+      type: object
+      additionalProperties: true
+      required: [session_id, hook_event_name, cwd]
+      properties:
+        session_id: { type: string, minLength: 1, maxLength: 256 }
+        hook_event_name: { type: string, enum: [UserPromptSubmit, PreCompact, SessionEnd] }
+        cwd: { type: string, minLength: 1, maxLength: 4096 }
+        current_prompt: { type: string, maxLength: 32768 }
+        source_watermark: { type: integer, minimum: 0 }
+    CurationHookResponse:
+      type: object
+      additionalProperties: false
+      required: [version, hook_event_name, accepted, enqueued]
+      properties:
+        version: { type: string, const: 'talaria.curation-hook.v1' }
+        hook_event_name: { type: string, enum: [UserPromptSubmit, PreCompact, SessionEnd] }
+        workspace_id: { type: string }
+        accepted: { type: boolean }
+        enqueued: { type: boolean }
+        recall: { $ref: '#/components/schemas/RecallResult' }
+    RecallResult:
+      type: object
+      additionalProperties: false
+      required: [workspace_id, items, included, omitted, context]
+      properties:
+        workspace_id: { type: string }
+        items: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/RecallItem' } }
+        included: { type: integer, minimum: 0, maximum: 3 }
+        omitted: { type: integer, minimum: 0 }
+        context: { type: string, maxLength: 8192 }
+    RecallItem:
+      type: object
+      additionalProperties: false
+      required: [memory_id, revision_id, workspace_id, kind, trust, pinned, label, title, content]
+      properties:
+        memory_id: { type: string }
+        revision_id: { type: string }
+        workspace_id: { type: string }
+        kind: { type: string, enum: [state, procedure, failure, standing_instruction] }
+        trust: { type: string, enum: [verified, generated] }
+        pinned: { type: boolean }
+        label: { type: string }
+        title: { type: string, maxLength: 256 }
+        content: { type: string, maxLength: 8192 }
     SessionStartHookSpecificOutput:
       type: object
       additionalProperties: false

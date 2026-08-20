@@ -18,6 +18,63 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for CurationHookRequestHookEventName.
+const (
+	CurationHookRequestHookEventNamePreCompact       CurationHookRequestHookEventName = "PreCompact"
+	CurationHookRequestHookEventNameSessionEnd       CurationHookRequestHookEventName = "SessionEnd"
+	CurationHookRequestHookEventNameUserPromptSubmit CurationHookRequestHookEventName = "UserPromptSubmit"
+)
+
+// Valid indicates whether the value is a known member of the CurationHookRequestHookEventName enum.
+func (e CurationHookRequestHookEventName) Valid() bool {
+	switch e {
+	case CurationHookRequestHookEventNamePreCompact:
+		return true
+	case CurationHookRequestHookEventNameSessionEnd:
+		return true
+	case CurationHookRequestHookEventNameUserPromptSubmit:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CurationHookResponseHookEventName.
+const (
+	CurationHookResponseHookEventNamePreCompact       CurationHookResponseHookEventName = "PreCompact"
+	CurationHookResponseHookEventNameSessionEnd       CurationHookResponseHookEventName = "SessionEnd"
+	CurationHookResponseHookEventNameUserPromptSubmit CurationHookResponseHookEventName = "UserPromptSubmit"
+)
+
+// Valid indicates whether the value is a known member of the CurationHookResponseHookEventName enum.
+func (e CurationHookResponseHookEventName) Valid() bool {
+	switch e {
+	case CurationHookResponseHookEventNamePreCompact:
+		return true
+	case CurationHookResponseHookEventNameSessionEnd:
+		return true
+	case CurationHookResponseHookEventNameUserPromptSubmit:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CurationHookResponseVersion.
+const (
+	TalariaCurationHookV1 CurationHookResponseVersion = "talaria.curation-hook.v1"
+)
+
+// Valid indicates whether the value is a known member of the CurationHookResponseVersion enum.
+func (e CurationHookResponseVersion) Valid() bool {
+	switch e {
+	case TalariaCurationHookV1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorEnvelopeVersion.
 const (
 	TalariaErrorV1 ErrorEnvelopeVersion = "talaria.error.v1"
@@ -125,22 +182,22 @@ func (e HealthResponseVersion) Valid() bool {
 
 // Defines values for MemoryItemKind.
 const (
-	Failure             MemoryItemKind = "failure"
-	Procedure           MemoryItemKind = "procedure"
-	StandingInstruction MemoryItemKind = "standing_instruction"
-	State               MemoryItemKind = "state"
+	MemoryItemKindFailure             MemoryItemKind = "failure"
+	MemoryItemKindProcedure           MemoryItemKind = "procedure"
+	MemoryItemKindStandingInstruction MemoryItemKind = "standing_instruction"
+	MemoryItemKindState               MemoryItemKind = "state"
 )
 
 // Valid indicates whether the value is a known member of the MemoryItemKind enum.
 func (e MemoryItemKind) Valid() bool {
 	switch e {
-	case Failure:
+	case MemoryItemKindFailure:
 		return true
-	case Procedure:
+	case MemoryItemKindProcedure:
 		return true
-	case StandingInstruction:
+	case MemoryItemKindStandingInstruction:
 		return true
-	case State:
+	case MemoryItemKindState:
 		return true
 	default:
 		return false
@@ -225,6 +282,48 @@ func (e ReadinessResponseVersion) Valid() bool {
 	}
 }
 
+// Defines values for RecallItemKind.
+const (
+	RecallItemKindFailure             RecallItemKind = "failure"
+	RecallItemKindProcedure           RecallItemKind = "procedure"
+	RecallItemKindStandingInstruction RecallItemKind = "standing_instruction"
+	RecallItemKindState               RecallItemKind = "state"
+)
+
+// Valid indicates whether the value is a known member of the RecallItemKind enum.
+func (e RecallItemKind) Valid() bool {
+	switch e {
+	case RecallItemKindFailure:
+		return true
+	case RecallItemKindProcedure:
+		return true
+	case RecallItemKindStandingInstruction:
+		return true
+	case RecallItemKindState:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RecallItemTrust.
+const (
+	RecallItemTrustGenerated RecallItemTrust = "generated"
+	RecallItemTrustVerified  RecallItemTrust = "verified"
+)
+
+// Valid indicates whether the value is a known member of the RecallItemTrust enum.
+func (e RecallItemTrust) Valid() bool {
+	switch e {
+	case RecallItemTrustGenerated:
+		return true
+	case RecallItemTrustVerified:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SessionStartHookSpecificOutputHookEventName.
 const (
 	SessionStartHookSpecificOutputHookEventNameSessionStart SessionStartHookSpecificOutputHookEventName = "SessionStart"
@@ -269,6 +368,35 @@ func (e SessionStartResponseVersion) Valid() bool {
 		return false
 	}
 }
+
+// CurationHookRequest defines model for CurationHookRequest.
+type CurationHookRequest struct {
+	CurrentPrompt        *string                          `json:"current_prompt,omitempty"`
+	Cwd                  string                           `json:"cwd"`
+	HookEventName        CurationHookRequestHookEventName `json:"hook_event_name"`
+	SessionId            string                           `json:"session_id"`
+	SourceWatermark      *int                             `json:"source_watermark,omitempty"`
+	AdditionalProperties map[string]interface{}           `json:"-"`
+}
+
+// CurationHookRequestHookEventName defines model for CurationHookRequest.HookEventName.
+type CurationHookRequestHookEventName string
+
+// CurationHookResponse defines model for CurationHookResponse.
+type CurationHookResponse struct {
+	Accepted      bool                              `json:"accepted"`
+	Enqueued      bool                              `json:"enqueued"`
+	HookEventName CurationHookResponseHookEventName `json:"hook_event_name"`
+	Recall        *RecallResult                     `json:"recall,omitempty"`
+	Version       CurationHookResponseVersion       `json:"version"`
+	WorkspaceId   *string                           `json:"workspace_id,omitempty"`
+}
+
+// CurationHookResponseHookEventName defines model for CurationHookResponse.HookEventName.
+type CurationHookResponseHookEventName string
+
+// CurationHookResponseVersion defines model for CurationHookResponse.Version.
+type CurationHookResponseVersion string
 
 // ErrorEnvelope defines model for ErrorEnvelope.
 type ErrorEnvelope struct {
@@ -372,6 +500,34 @@ type ReadinessResponse struct {
 // ReadinessResponseVersion defines model for ReadinessResponse.Version.
 type ReadinessResponseVersion string
 
+// RecallItem defines model for RecallItem.
+type RecallItem struct {
+	Content     string          `json:"content"`
+	Kind        RecallItemKind  `json:"kind"`
+	Label       string          `json:"label"`
+	MemoryId    string          `json:"memory_id"`
+	Pinned      bool            `json:"pinned"`
+	RevisionId  string          `json:"revision_id"`
+	Title       string          `json:"title"`
+	Trust       RecallItemTrust `json:"trust"`
+	WorkspaceId string          `json:"workspace_id"`
+}
+
+// RecallItemKind defines model for RecallItem.Kind.
+type RecallItemKind string
+
+// RecallItemTrust defines model for RecallItem.Trust.
+type RecallItemTrust string
+
+// RecallResult defines model for RecallResult.
+type RecallResult struct {
+	Context     string       `json:"context"`
+	Included    int          `json:"included"`
+	Items       []RecallItem `json:"items"`
+	Omitted     int          `json:"omitted"`
+	WorkspaceId string       `json:"workspace_id"`
+}
+
 // SessionStartHookSpecificOutput defines model for SessionStartHookSpecificOutput.
 type SessionStartHookSpecificOutput struct {
 	AdditionalContext string                                      `json:"additionalContext"`
@@ -421,8 +577,139 @@ type MemoryGetParams struct {
 // MemorySearchJSONRequestBody defines body for MemorySearch for application/json ContentType.
 type MemorySearchJSONRequestBody = MemorySearchRequest
 
+// PreCompactJSONRequestBody defines body for PreCompact for application/json ContentType.
+type PreCompactJSONRequestBody = CurationHookRequest
+
+// SessionEndJSONRequestBody defines body for SessionEnd for application/json ContentType.
+type SessionEndJSONRequestBody = CurationHookRequest
+
 // SessionStartJSONRequestBody defines body for SessionStart for application/json ContentType.
 type SessionStartJSONRequestBody = SessionStartRequest
+
+// UserPromptSubmitJSONRequestBody defines body for UserPromptSubmit for application/json ContentType.
+type UserPromptSubmitJSONRequestBody = CurationHookRequest
+
+// Getter for additional properties for CurationHookRequest. Returns the specified
+// element and whether it was found
+func (a CurationHookRequest) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for CurationHookRequest
+func (a *CurationHookRequest) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for CurationHookRequest to handle AdditionalProperties
+func (a *CurationHookRequest) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["current_prompt"]; found {
+		err = json.Unmarshal(raw, &a.CurrentPrompt)
+		if err != nil {
+			return fmt.Errorf("error reading 'current_prompt': %w", err)
+		}
+		delete(object, "current_prompt")
+	}
+
+	if raw, found := object["cwd"]; found {
+		err = json.Unmarshal(raw, &a.Cwd)
+		if err != nil {
+			return fmt.Errorf("error reading 'cwd': %w", err)
+		}
+		delete(object, "cwd")
+	}
+
+	if raw, found := object["hook_event_name"]; found {
+		err = json.Unmarshal(raw, &a.HookEventName)
+		if err != nil {
+			return fmt.Errorf("error reading 'hook_event_name': %w", err)
+		}
+		delete(object, "hook_event_name")
+	}
+
+	if raw, found := object["session_id"]; found {
+		err = json.Unmarshal(raw, &a.SessionId)
+		if err != nil {
+			return fmt.Errorf("error reading 'session_id': %w", err)
+		}
+		delete(object, "session_id")
+	}
+
+	if raw, found := object["source_watermark"]; found {
+		err = json.Unmarshal(raw, &a.SourceWatermark)
+		if err != nil {
+			return fmt.Errorf("error reading 'source_watermark': %w", err)
+		}
+		delete(object, "source_watermark")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for CurationHookRequest to handle AdditionalProperties
+func (a CurationHookRequest) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.CurrentPrompt != nil {
+		object["current_prompt"], err = json.Marshal(a.CurrentPrompt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'current_prompt': %w", err)
+		}
+	}
+
+	object["cwd"], err = json.Marshal(a.Cwd)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'cwd': %w", err)
+	}
+
+	object["hook_event_name"], err = json.Marshal(a.HookEventName)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'hook_event_name': %w", err)
+	}
+
+	object["session_id"], err = json.Marshal(a.SessionId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'session_id': %w", err)
+	}
+
+	if a.SourceWatermark != nil {
+		object["source_watermark"], err = json.Marshal(a.SourceWatermark)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'source_watermark': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // Getter for additional properties for SessionStartRequest. Returns the specified
 // element and whether it was found
@@ -521,34 +808,40 @@ func (a SessionStartRequest) MarshalJSON() ([]byte, error) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

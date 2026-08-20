@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/guilhermecastro/talaria-mem/internal/adapters/codex"
 	"github.com/guilhermecastro/talaria-mem/internal/application"
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
@@ -21,6 +22,13 @@ type testStarter struct{ called bool }
 func (starter *testStarter) SessionStart(_ context.Context, input SessionStartRequest) (SessionStartResponse, error) {
 	starter.called = true
 	return SessionStartResponse{Included: 0, Omitted: 0}, nil
+}
+
+type testHooker struct{ events []codex.HookEvent }
+
+func (hooker *testHooker) Handle(_ context.Context, event codex.HookEvent) (codex.HookResponse, error) {
+	hooker.events = append(hooker.events, event)
+	return codex.HookResponse{Version: codex.CurationHookResponseVersion, HookName: event.HookName, Accepted: true, Recall: &codex.RecallResult{WorkspaceID: "workspace", Items: []codex.RecallItem{}, Context: ""}}, nil
 }
 
 type testReader struct {
@@ -66,11 +74,37 @@ func newTestServer(t *testing.T, reader ReadService, guard ContentGuard) (*Serve
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(ServerConfig{Authenticator: authenticator, SessionStart: &testStarter{}, Reader: reader, Guard: guard, Readiness: testReadiness{ready: true}})
+	server, err := NewServer(ServerConfig{Authenticator: authenticator, SessionStart: &testStarter{}, CurationHooks: &testHooker{}, Reader: reader, Guard: guard, Readiness: testReadiness{ready: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return server, token
+}
+
+func TestCurationHookEndpointsParseEventsAndPreserveEmptyResponses(t *testing.T) {
+	server, token := newTestServer(t, testReader{}, nil)
+	for _, test := range []struct {
+		path, name string
+	}{
+		{path: UserPromptSubmitPath, name: codex.HookUserPromptSubmit},
+		{path: PreCompactPath, name: codex.HookPreCompact},
+		{path: SessionEndPath, name: codex.HookSessionEnd},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := `{"session_id":"session","cwd":"/workspace","hook_event_name":"` + test.name + `","current_prompt":"prompt","transcript_path":"MUST_NOT_APPEAR"}`
+			recorder := httptest.NewRecorder()
+			server.ServeHTTP(recorder, authenticatedRequest(http.MethodPost, test.path, token, body))
+			if recorder.Code != http.StatusOK || strings.Contains(recorder.Body.String(), "MUST_NOT_APPEAR") {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+	request := authenticatedRequest(http.MethodPost, UserPromptSubmitPath, token, `{"session_id":"s","cwd":"/tmp","hook_event_name":"SessionEnd"}`)
+	recorder := httptest.NewRecorder()
+	server.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("mismatched hook status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
 }
 
 func authenticatedRequest(method, path, token, body string) *http.Request {
