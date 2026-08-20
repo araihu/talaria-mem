@@ -1,8 +1,8 @@
 # Local deployment runbook
 
 This page is the operator path for a source checkout. Follow it in order:
-build the binary, create the private installation, register the official
-SessionStart hook, start the daemon, and verify a workspace. Host service
+build the binary, create the private installation, register the official Codex
+lifecycle hooks and MCP proxy, start the daemon, and verify a workspace. Host service
 installation remains a separate, explicit step because the binary does not
 install or start service-manager units.
 
@@ -28,8 +28,8 @@ checkout, not release evidence or a supported host-service installer.
   not create the Codex directory tree.
 
 The runtime is local-first: SQLite is canonical, the daemon binds to literal
-loopback by default at `127.0.0.1:7437`, and no cloud or model endpoint is
-needed.
+loopback by default at `127.0.0.1:7437`, and automatic inference is enabled
+only through the user-owned provider topology.
 
 ## Build and install the binary
 
@@ -99,7 +99,8 @@ talaria-mem setup codex --remove \
 ```
 
 If a non-default endpoint or custom paths were used, pass the same
-`--endpoint`, `--config`, `--hook`, `--codex-hooks`, `--token`, and `--binary` values during
+`--endpoint`, `--config`, `--talaria-config`, `--codex-config`, `--hook`,
+`--codex-hooks`, `--provider-config`, `--token`, and `--binary` values during
 removal. A changed or unknown managed hook is treated as a collision rather
 than overwritten.
 
@@ -115,23 +116,26 @@ The generated hook bakes the setup endpoint into its default. An explicit
 for that hook invocation.
 
 The dry-run creates only the owner-private directory structure. Apply creates
-the root key, bearer token, setup metadata, executable hook, and managed
-official Codex registration:
+the root key, bearer token, setup metadata, generic executable hook, four
+managed official Codex hook groups, MCP registration, and absent-only provider
+configuration:
 
 ```text
 $HOME/.talaria-mem/state/talaria-mem.sqlite3
 $HOME/.talaria-mem/config/root.key
 $HOME/.talaria-mem/config/token
 $HOME/.talaria-mem/config/codex.toml
-$HOME/.talaria-mem/config/session-start.sh
+$HOME/.talaria-mem/config/codex-hook.sh
+$HOME/.talaria-mem/config/providers.toml
+$HOME/.codex/config.toml (managed MCP block)
 $HOME/.codex/hooks.json
 $HOME/.talaria-mem/backups/
 ```
 
 Do not print or commit `root.key` or `token`. Re-running `--apply` is
-idempotent. Setup does not start a daemon or install a service. It adds only the
-exact Talaria-Mem `SessionStart` group to `hooks.json`; unrelated top-level
-settings and hook groups remain in place.
+idempotent. Setup does not start a daemon or install a service. It adds only
+the exact Talaria-Mem hook groups and MCP block; unrelated configuration
+remains in place.
 
 The normal installation uses these defaults:
 
@@ -233,14 +237,16 @@ rm "$HOME/.config/systemd/user/talaria-mem.service"
 systemctl --user daemon-reload
 ```
 
-## Register the Codex SessionStart hook
+## Register Codex hooks and MCP
 
 `setup codex --apply` writes
-`$HOME/.talaria-mem/config/session-start.sh` and registers one exact managed
-group in `$HOME/.codex/hooks.json`. It preserves unknown top-level fields and
-unrelated hook groups. A second apply is a no-op. `--codex-hooks` can target a
-different JSON registry, but this tool does not edit `config.toml` or a
-repository-local hook layer.
+`$HOME/.talaria-mem/config/codex-hook.sh` and registers one exact managed group
+for each of `SessionStart`, `UserPromptSubmit`, `PreCompact`, and `SessionEnd`
+in `$HOME/.codex/hooks.json`. It also adds the exact `mcp_servers.talaria_mem`
+block to `$HOME/.codex/config.toml` and creates the default `providers.toml`
+only when absent. It preserves unrelated configuration. A second apply is a
+no-op. `--codex-hooks` can target a different JSON registry, and
+`--codex-config`/`--provider-config` can target explicit files.
 
 The managed group is:
 
@@ -253,7 +259,7 @@ The managed group is:
         "hooks": [
           {
             "type": "command",
-            "command": "/absolute/path/to/home/.talaria-mem/config/session-start.sh",
+            "command": "/absolute/path/to/home/.talaria-mem/config/codex-hook.sh",
             "statusMessage": "Loading Talaria-Mem context"
           }
         ]
@@ -280,10 +286,33 @@ hook definition; a changed hook is reviewed again. If the existing entry uses
 the same command with different matcher or status fields, setup returns a
 collision and leaves the file unchanged.
 
-The intended privacy boundary is to forward only bounded event fields and never
-read or persist `transcript_path`. A generated hook smoke with a real
-Codex-shaped payload passed against a temporary daemon and verified that the
-transcript path did not appear in the response.
+The generic hook routes UserPromptSubmit, PreCompact, and SessionEnd to the
+versioned control endpoints. UserPromptSubmit returns bounded local recall and
+queues every tenth prompt; the other events enqueue without waiting for model
+inference. The intended privacy boundary is to forward only bounded event
+fields and never read or persist `transcript_path`.
+
+### Provider order and local-only inference
+
+The absent-only `providers.toml` defaults to Codex `gpt-5.6-luna` with
+`reasoning_effort = "high"` and a 90-second timeout. To use local inference
+without Codex fallback, configure a single literal-loopback provider:
+
+```toml
+version = 1
+enabled = true
+chain = ["ollama"]
+
+[providers.ollama]
+type = "openai_compatible"
+base_url = "http://127.0.0.1:11434/v1"
+model = "qwen3:8b"
+timeout = "90s"
+```
+
+Fallback is attempted only for provider-unavailable, timeout, rate-limit, or
+authentication classes. Scanner refusal, invalid structured output, policy or
+suspicious-content rejection, and persistence failures stop the chain.
 
 ### Privacy and redaction checks
 
@@ -298,8 +327,8 @@ group/world parents fail closed.
 Focused checks:
 
 ```sh
-go test ./internal/lifecycle ./internal/adapters/http ./internal/adapters/codex
-sh -n internal/lifecycle/assets/session-start.sh
+go test ./internal/lifecycle ./internal/adapters/http ./internal/adapters/codex ./internal/adapters/mcp
+sh -n internal/lifecycle/assets/codex-hook.sh
 ```
 
 These tests use credential and submitted-content canaries. A canary appearing
@@ -309,7 +338,7 @@ After creating and binding a workspace, the generated hook can be preflighted
 without opening Codex:
 
 ```sh
-hook="$HOME/.talaria-mem/config/session-start.sh"
+hook="$HOME/.talaria-mem/config/codex-hook.sh"
 printf '%s\n' '{"session_id":"manual-smoke","cwd":"/absolute/path/to/repo","hook_event_name":"SessionStart","transcript_path":"/tmp/should-not-be-read.jsonl"}' \
   | "$hook"
 ```
@@ -319,23 +348,22 @@ should contain `hookSpecificOutput.additionalContext`; the transcript path
 must not be returned. A `404` means that the path has no workspace binding,
 not that the daemon is down.
 
-## Optional MCP registration
+## MCP proxy
 
-The daemon exposes authenticated Streamable HTTP MCP at `/mcp`. Keep the
-token out of Codex configuration and make the environment variable available
-in the shell that starts Codex:
+Setup registers the `talaria_mem` MCP server as `talaria-mem mcp proxy`. The
+proxy reads the owner-only token file and bridges Codex stdio JSON-RPC to the
+authenticated loopback Streamable HTTP endpoint; no token environment variable
+or bearer value is written to Codex configuration.
 
 ```sh
-export TALARIA_MEM_TOKEN="$(tr -d '\r\n' < "$HOME/.talaria-mem/config/token")"
-codex mcp add talaria-mem \
-  --url http://127.0.0.1:7437/mcp \
-  --bearer-token-env-var TALARIA_MEM_TOKEN
+talaria-mem setup codex --dry-run --json
+talaria-mem setup codex --apply --json
 codex mcp list
 ```
 
-Use the same custom port in `--url` when the daemon does not use `7437`. The
-MCP registration is optional; the SessionStart hook and the CLI do not require
-MCP to be configured.
+Use the same custom port in setup and daemon when the daemon does not use
+`7437`. `memory_curate_inline` performs no provider call; it stores one
+server-assigned generated candidate after the existing scanner/domain guards.
 
 The token is local bearer material. Rotate it with `talaria-mem token rotate`
 only after updating the environment used by Codex, then restart the Codex

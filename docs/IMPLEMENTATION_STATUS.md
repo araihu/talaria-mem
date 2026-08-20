@@ -1,16 +1,19 @@
 # Implementation status
 
-This page describes the current unreleased v0.0.2 checkout, not a release
-promise. Recheck the working tree and rerun the linked commands before
-publishing a version. The architecture specification and implementation plan
-remain target documents; they describe capabilities that may still need
-composition or end-to-end evidence.
+This page describes the current unreleased automatic-memory checkout, not a
+release promise. Recheck the working tree and rerun the linked commands before
+publishing a version. Live Codex/Luna inference remains opt-in; ordinary tests
+use local fakes and never require provider access.
 
 | Capability | Current surface | Evidence status | Remaining work |
 |---|---|---|---|
 | Build, tests, race, vet | One Go module and `cmd/talaria-mem` binary | `go test ./...`, `go test -race ./...`, and `go vet ./...` pass for this candidate | Refresh release evidence after the final candidate is frozen; run the full `make check` from a clean generated tree |
 | First-install paths | `setup codex --dry-run` safely creates the private root and reports the official Codex registration | `internal/runtime` setup tests and lifecycle installer tests | Keep platform-specific service installation separate from path and hook setup |
-| Setup artifacts | Root key, bearer token, managed metadata, executable SessionStart hook, and one collision-safe `hooks.json` group | `internal/lifecycle/codex_hooks_test.go`, `TestRunSetupApplyInstallsHookAndCredentials` | Add platform service installers and release upgrade/uninstall tooling |
+| Setup artifacts | Root key, bearer token, managed metadata, generic four-event hook, collision-safe `hooks.json` groups, MCP registration, and absent-only provider defaults | `internal/lifecycle/codex_hooks_test.go`, MCP/provider installer tests, `TestRunSetupApplyInstallsHookAndCredentials` | Add platform service installers and release upgrade/uninstall tooling |
+| Automatic curation | Encrypted bounded queue, generated trust, ordered Codex/compatible providers, retries, expiry, and generated-memory dedupe | `internal/curation`, SQLite curation tests, `internal/acceptance/TestAutomaticMemoryLifecycle` | Add a full Codex `thread/read` host snapshot adapter and live opt-in evidence |
+| Prompt recall | UserPromptSubmit local FTS recall with generated labeling and bounded output | `internal/adapters/codex/recall_test.go`, runtime composition/acceptance tests | Measure relevance on representative workspaces |
+| MCP curation | `memory_curate_inline` and authenticated `mcp proxy` stdio bridge | `internal/adapters/mcp` and CLI tests | Add a live Codex MCP consumer smoke |
+| Safe curation health | Status/doctor report provider order/availability, queue depth, oldest safe age, running count, and safe error class | `internal/lifecycle/curation_health_test.go`, runtime composition tests | Add repair receipts for persistent queue corruption |
 | SessionStart contract | Hook accepts the official Codex event and forwards bounded `session_id`, `cwd`, and `hook_event_name` fields | HTTP contract tests, `TestCompositionSessionStartListsBoundVerifiedMemory`, and hook packaging tests | Add a committed daemon-plus-hook smoke and full process-level egress evidence |
 | CLI surface | Command tree with generated help, persistent `--json`, typed flags, and usage exit code `2` | `internal/cli/root_test.go`, command tests, and `cmd/talaria-mem/main_test.go` | Keep command help and the operator runbook aligned as commands become available |
 | CLI memory flow | Workspace create/list/show/bind/merge; memory add, update, confirm, pin, forget, restore, review, search, get, and explain; status and doctor | Package and composition tests; review-listing remains fail-closed until its paginated client is composed | Compose review listing and the remaining maintenance commands |

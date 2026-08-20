@@ -8,7 +8,7 @@ OPENAPI_GENERATED := internal/adapters/http/openapi.gen.go
 SCANNER_ENVIRONMENT_DOC := internal/scanner/environment.md
 CODEX_PROTOCOL_GENERATED := internal/providers/codex/protocol
 
-.PHONY: build test test-race vet sqlc-generate generate openapi-lint source-tree-clean check clean sqlc-negative
+.PHONY: build test test-race vet sqlc-generate generate openapi-lint codex-schema-check live-codex-curation source-tree-clean check clean sqlc-negative
 
 build:
 	@mkdir -p "$(BUILD_DIR)"
@@ -41,6 +41,12 @@ openapi-lint:
 		"$$vacuum_bin" lint "$(OPENAPI_SOURCE)" --config "$(OPENAPI_OVERLAY)"; \
 		"$$vacuum_bin" bundle "$(OPENAPI_SOURCE)" "$(BUILD_DIR)/talaria.openapi.yaml"; \
 	fi
+
+codex-schema-check:
+	sh scripts/check-codex-schema.sh
+
+live-codex-curation:
+	sh scripts/live-codex-curation.sh
 
 source-tree-clean:
 	@test -z "$$(find . -type f \( -name talaria-mem -o -name '*.tmp' \) -not -path './.git/*' -not -path './.build/*' -print -quit)"

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -191,6 +192,13 @@ func Generate(schemaDir, manifestPath, outputDir string) error {
 }
 
 func writeFile(path string, data []byte) error {
+	if strings.HasSuffix(path, ".go") {
+		formatted, err := format.Source(data)
+		if err != nil {
+			return fmt.Errorf("format generated file %s: %w", path, err)
+		}
+		data = formatted
+	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("write generated file %s: %w", path, err)
 	}

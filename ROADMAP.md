@@ -6,7 +6,7 @@ is not a release checklist. The current checkout is summarized in
 not composed or freshly evidenced remain open before a release.
 The active consumer-install list is [docs/TASKS.md](docs/TASKS.md).
 
-## Baseline — explicit local memory
+## Baseline — local memory with safe automatic curation
 
 - One local Go binary and per-user daemon.
 - Codex SessionStart and MCP integration.
@@ -15,24 +15,31 @@ The active consumer-install list is [docs/TASKS.md](docs/TASKS.md).
 - Transactionally scheduled deterministic Markdown projection.
 - Betterleaks on every content boundary.
 - Default-unverified writes with an explicit CLI `--verified` trust assertion.
+- Generated trust for automatic/inline curation; generated context is
+  searchable and recallable but cannot be pinned or projected until confirmed.
 - Workspace inference, explicit binding, and merge-with-redirect.
 - Usage-aware ranking and conservative pruning recommendations.
-- No transcript ingestion, model extraction, embeddings, or outbound network.
+- Encrypted bounded curation jobs with restart recovery and expiry.
+- Codex Luna-high app-server inference by default, ordered compatible-provider
+  fallback, and local-only loopback configuration.
+- Prompt-time recall and Codex UserPromptSubmit/PreCompact/SessionEnd hooks.
+- Authenticated MCP stdio proxy and provider-free inline curation.
 
-## Next — optional local extraction
+## Next — curation hardening and operator evidence
 
-- Add an extractor port without changing canonical storage contracts.
-- Disabled by default and enabled per workspace.
-- Accept only literal loopback addresses or Unix sockets.
-- Support local OpenAI-compatible servers such as Ollama or llama.cpp.
-- Disable redirects and reject any non-local destination.
-- Run Betterleaks scan, redaction, and rescan before local model invocation.
-- Persist only sanitized bounded jobs; erase successful payloads.
-- Mark extracted memories unverified until confirmed.
-- Add PreCompact and SessionEnd only with this capability.
+- Add a true Codex `thread/read` host snapshot adapter when the app-server
+  compatibility surface is stable; retain the current bounded no-transcript
+  degradation when host access is unavailable.
+- Exercise live Codex schema drift checks and one explicitly approved Luna
+  acceptance session without storing payloads.
+- Add provider health history and explicit curation repair receipts without
+  including credentials, prompts, locators, or response bodies.
+- Add fuzz/property tests for hook JSON, provider structured output, and MCP
+  JSON-RPC framing.
 
-Cloud extraction is not scheduled. The local binary must not contain a dormant
-cloud upload path.
+Cloud discovery is not scheduled. Remote compatible providers remain explicit
+user configuration; the binary must not discover or upload to an unconfigured
+service.
 
 ## Retrieval evolution
 

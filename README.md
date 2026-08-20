@@ -3,10 +3,12 @@
 ![Talaria-Mem — talária alada de Hermes](assets/talaria-mem-social-preview.png)
 
 Talaria-Mem is a local-first, workspace-scoped memory service for Codex. The
-current checkout is an unreleased v0.0.2 implementation: one Go binary, a
-SQLite-canonical store, and a rebuildable Markdown projection. Runtime code has
-no cloud or local-model extraction path; the daemon contract is no outbound
-network connections. Process-level egress evidence remains a release gate.
+current checkout is an unreleased automatic-memory implementation: one Go
+binary, a SQLite-canonical store, a rebuildable Markdown projection, bounded
+prompt-time recall, and an encrypted asynchronous curation queue. Inference is
+explicitly configured; the default uses the host Codex app-server with Luna
+high reasoning, while local/OpenAI-compatible providers may be selected or
+ordered as fallbacks.
 
 Licensed under the [MIT License](LICENSE).
 
@@ -33,18 +35,22 @@ chooses to keep: decisions, procedures, failures, and standing instructions.
 Memories belong to a workspace, can be managed through the CLI or MCP, and can
 be loaded into Codex at `SessionStart` after explicit confirmation.
 
-It does not ingest transcripts, extract memories automatically, call a cloud
-model, or require a local model. A write is an explicit operation; a new memory
-stays out of search and SessionStart context until the CLI trust workflow
-confirms it.
+It never stores full transcripts, tool inputs, credentials, or model reasoning.
+Automatic and inline curation create `generated` memories that are searchable
+and recallable but remain labeled and cannot become standing instructions or
+pinned context until a person confirms them. Provider calls happen only through
+the configured Codex or OpenAI-compatible adapter.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    codex["Codex"] --> hook["SessionStart hook"]
-    hook -->|"bounded event fields"| daemon["Authenticated loopback daemon"]
-    mcp["MCP client"] --> daemon
+    codex["Codex"] --> hooks["Codex lifecycle hooks"]
+    hooks -->|"bounded event fields"| daemon["Authenticated loopback daemon"]
+    hooks --> recall["Local prompt recall"]
+    daemon --> queue["Encrypted curation queue"]
+    queue --> provider["Configured provider chain"]
+    mcp["MCP stdio proxy"] --> daemon
     cli["CLI"] --> sqlite[("SQLite canonical store")]
     daemon --> sqlite
     daemon --> binding["Persisted workspace binding"]
@@ -69,8 +75,8 @@ finished release. Use the table below as the threat-model summary:
 
 | Area | What the implementation does | What it does not guarantee |
 |---|---|---|
-| Data locality | Runtime has no cloud or local-model extraction path and no outbound network path. | Build and gate commands may download pinned tools on a cold cache. Manual copying or exporting data is outside the runtime boundary. |
-| Network access | The daemon binds to literal loopback, requires a bearer token, rejects forwarding headers and credential query/cookie channels, and bounds requests. | It is not a remote or multi-user service. A process that can read the local token or act as the same OS user is inside the host trust boundary. |
+| Data locality | Storage, hooks, recall, and MCP stay local; curation payloads are bounded, encrypted at rest, and erased after completion/terminal refusal. | Configured inference may send sanitized snapshots to the selected provider; choose a loopback-only chain for local inference. |
+| Network access | The daemon binds to literal loopback, requires a bearer token, rejects forwarding headers and credential query/cookie channels, and bounds requests. Compatible providers disable proxies and redirects and require HTTPS except literal loopback. | It is not a remote or multi-user service. A process that can read the local token or act as the same OS user is inside the host trust boundary. |
 | Filesystem | State, config, backups, and projections use owner-only directories/files; symlinks and unsafe ownership/modes fail closed. | SQLite and Markdown are not application-encrypted at rest. Protection depends on the OS account and filesystem permissions. |
 | Memory trust | Writes start unverified; explicit CLI confirmation is required for verified retrieval. Betterleaks scans declared content boundaries and fails closed on findings or scanner uncertainty. | A scanner is a guardrail, not proof that content contains no secret or prompt injection. Review content before confirming it. |
 | Hook content | The hook forwards only bounded event fields, never opens `transcript_path`, and wraps returned memory as an untrusted reference. | The reference markers do not sandbox instructions inside memory content. They are not a prompt-injection defense. |
@@ -109,10 +115,11 @@ The default private root is `$HOME/.talaria-mem`, containing `state/`,
 `config/`, and `backups/`, all owner-only. First-install setup creates only
 those managed directories during a dry-run; it does not create credentials,
 configuration, or the hook. Apply creates the root key, bearer token, managed
-setup metadata, an executable SessionStart hook at
-`$HOME/.talaria-mem/config/session-start.sh`, and one managed group in
-`$HOME/.codex/hooks.json`. Re-running apply is idempotent and preserves other
-Codex hooks. The `.codex` directory must already exist; use
+setup metadata, one generic executable hook at
+`$HOME/.talaria-mem/config/codex-hook.sh`, all four managed Codex lifecycle
+groups, one `talaria_mem` MCP entry, and the default `providers.toml` when
+absent. Re-running apply is idempotent and preserves other Codex configuration.
+The `.codex` directory must already exist; use
 `--codex-hooks /absolute/path/hooks.json` for another JSON registry. Removal
 requires the recorded fingerprint and preserves unrelated files:
 
@@ -126,6 +133,29 @@ talaria-mem setup codex --remove \
 The hook registration is limited to the official JSON hook registry. Setup does
 not start a daemon or install a LaunchAgent/systemd unit. Start the daemon
 explicitly in a second terminal. Never print or commit `root.key` or `token`.
+
+### Provider configuration
+
+The absent-only default is Codex Luna-high:
+
+```toml
+version = 1
+enabled = true
+chain = ["codex"]
+
+[providers.codex]
+type = "codex"
+model = "gpt-5.6-luna"
+reasoning_effort = "high"
+command = "codex"
+timeout = "90s"
+```
+
+For local-only inference, replace the chain with a literal-loopback
+OpenAI-compatible endpoint. Add Codex or another compatible provider to the
+`chain` only when fallback is desired. Credentials may reference one captured
+environment variable or one owner-only `0600` file; they are never included in
+status, doctor, TOML registration, or process arguments.
 
 For isolated runs, either leave all three path variables unset to use the
 default root, or set `TALARIA_STATE_DIR`, `TALARIA_CONFIG_DIR`, and
@@ -179,16 +209,19 @@ make a memory verified; MCP and import do not provide a verified override.
 Betterleaks scans content at each declared input/output boundary. Findings or
 scanner uncertainty fail closed and do not return memory content.
 
-## SessionStart and local interfaces
+## Hooks, recall, and local interfaces
 
-The hook accepts the official Codex `SessionStart` event. It retains only the
-bounded `session_id`, `cwd`, and `hook_event_name` fields needed by the daemon;
-optional fields such as `source` and `transcript_path`, plus unknown fields, are
-discarded without opening the transcript. Its response includes Codex's
-`hookSpecificOutput.additionalContext` shape. The daemon resolves the workspace
-from the persisted binding and selects only active, verified, non-quarantined
-memories.
+The generic hook routes `SessionStart`, `UserPromptSubmit`, `PreCompact`, and
+`SessionEnd` to versioned authenticated control endpoints. It retains only
+bounded typed fields; `transcript_path`, tool payloads, and unknown fields are
+discarded without opening the transcript. UserPromptSubmit performs bounded
+local recall before returning and queues every tenth prompt; PreCompact and
+SessionEnd queue source capture without waiting for inference. Generated recall
+is explicitly labeled unconfirmed historical context.
 
+MCP is registered as `talaria-mem mcp proxy`, an authenticated stdio bridge to
+the loopback Streamable HTTP daemon. `memory_curate_inline` accepts one selected
+candidate without a provider call and the server assigns generated trust.
 MCP and control routes require a bearer token and literal loopback access.
 `/healthz` is the unauthenticated liveness endpoint; `/readyz` and control
 routes are authenticated.
@@ -217,23 +250,23 @@ generation checks, OpenAPI lint, and source-tree checks together:
 ```sh
 make test
 make test-race
-make vet
 make openapi-lint
 make check
 ```
 
-The application runtime has no egress path. A cold build/gate cache may still
-download pinned repository verification tools; once cached, the commands are
-repeatable without that download.
+Only configured inference adapters may egress. A cold build/gate cache may
+still download pinned repository verification tools; once cached, the commands
+are repeatable without that download.
 
 The G00–G30 catalog and traceability files describe the intended acceptance
 protocol. Existing receipt artifacts are historical evidence, not a release
 claim for this untagged checkout. See [IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)
 before treating a capability as end-to-end available.
 
-## Deliberate v0.0.2 boundaries
+## Deliberate boundaries
 
-This implementation has no cloud extraction, local model extraction, transcript
-ingestion, embedding index, automatic Markdown synchronization, multi-user
-service, or automatic database eviction. Deferred work and the longer-term
-local extraction direction are recorded in [ROADMAP.md](ROADMAP.md).
+This implementation has no full-transcript ingestion, semantic embeddings,
+automatic Markdown synchronization, multi-user service, or automatic database
+eviction. Provider topology remains user-owned and fallback is fail-closed
+after scanner refusal, invalid output, policy refusal, suspicious content, or
+persistence failure. Deferred work is recorded in [ROADMAP.md](ROADMAP.md).
