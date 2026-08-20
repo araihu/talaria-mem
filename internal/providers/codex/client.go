@@ -89,11 +89,11 @@ func StartClient(parent context.Context, configuration ClientConfig) (*AppClient
 }
 
 // appServerArgs keeps provider configuration concise: a configured Codex
-// executable means the normal `codex app-server` stdio process. Tests and
+// executable means the normal `codex app-server --stdio` process. Tests and
 // wrapper executables may still provide explicit arguments.
 func appServerArgs(args []string) []string {
 	if len(args) == 0 {
-		return []string{"app-server"}
+		return []string{"app-server", "--stdio"}
 	}
 	return append([]string(nil), args...)
 }
@@ -150,12 +150,23 @@ type appServerHandler struct {
 	events chan<- ProtocolEvent
 }
 
+const maxCuratorEventBytes = 128 << 10
+
 func (handler appServerHandler) Handle(ctx context.Context, connection *jsonrpc2.Conn, request *jsonrpc2.Request) {
 	if request == nil {
 		return
 	}
+	if request.Notif && request.Method != protocol.NotificationAgentMessageDone && request.Method != protocol.NotificationTurnCompleted {
+		if request.Method == protocol.NotificationError {
+			select {
+			case handler.events <- ProtocolEvent{Method: request.Method}:
+			default:
+			}
+		}
+		return
+	}
 	var params json.RawMessage
-	if request.Params != nil {
+	if request.Notif && request.Params != nil && len(*request.Params) <= maxCuratorEventBytes {
 		params = append([]byte(nil), (*request.Params)...)
 	}
 	select {

@@ -13,12 +13,16 @@ INSERT INTO memory_revisions (
 
 -- name: MoveCurrentRevision :execrows
 UPDATE memories
-SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?, updated_at = ?
+SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?,
+    generated_fingerprint = CASE WHEN ? = 'generated' THEN generated_fingerprint ELSE '' END,
+    updated_at = ?
 WHERE id = ? AND current_revision_id = ?;
 
 -- name: MoveInitialCurrentRevision :execrows
 UPDATE memories
-SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?, updated_at = ?
+SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?,
+    generated_fingerprint = CASE WHEN ? = 'generated' THEN generated_fingerprint ELSE '' END,
+    updated_at = ?
 WHERE id = ? AND current_revision_id IS NULL;
 
 -- name: DeleteFTSRow :exec

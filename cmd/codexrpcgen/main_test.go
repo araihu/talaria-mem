@@ -10,10 +10,10 @@ import (
 
 func TestLoadManifestRejectsDuplicateAndMalformedMethods(t *testing.T) {
 	for name, contents := range map[string]string{
-		"wrong arity": `{"initialize":["v1/InitializeParams"]}`,
+		"wrong arity":  `{"initialize":["v1/InitializeParams"]}`,
 		"empty method": `{"": ["v1/InitializeParams", "v1/InitializeResponse"]}`,
-		"bad method": `{"not a method":["v1/InitializeParams", "v1/InitializeResponse"]}`,
-		"bad type": `{"initialize":["v1/InitializeParams", ""]}`,
+		"bad method":   `{"not a method":["v1/InitializeParams", "v1/InitializeResponse"]}`,
+		"bad type":     `{"initialize":["v1/InitializeParams", ""]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "methods.json")
@@ -67,6 +67,33 @@ func TestBuildCuratedSchemaRequiresEveryManifestRoot(t *testing.T) {
 	}
 	if _, err := BuildCuratedSchema(schemaDir, manifest); err == nil {
 		t.Fatal("BuildCuratedSchema() error = nil")
+	}
+}
+
+func TestBuildCuratedSchemaValidatesTransitiveReferences(t *testing.T) {
+	tests := map[string]string{
+		"missing definition": `{"$ref":"#/definitions/Missing"}`,
+		"escaping reference": `{"$ref":"../outside.json#/definitions/Value"}`,
+	}
+	for name, body := range tests {
+		t.Run(name, func(t *testing.T) {
+			schemaDir := t.TempDir()
+			writeSchema := func(relative, contents string) {
+				path := filepath.Join(schemaDir, relative+".json")
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			writeSchema("v1/InitializeParams", `{"title":"InitializeParams","type":"object","properties":{"value":`+body+`}}`)
+			writeSchema("v1/InitializeResponse", `{"title":"InitializeResponse","type":"object"}`)
+			manifest := Manifest{Methods: []Method{{Name: "initialize", Params: "v1/InitializeParams", Result: "v1/InitializeResponse"}}}
+			if _, err := BuildCuratedSchema(schemaDir, manifest); err == nil {
+				t.Fatal("BuildCuratedSchema() error = nil")
+			}
+		})
 	}
 }
 

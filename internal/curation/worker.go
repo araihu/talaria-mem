@@ -39,9 +39,10 @@ type Worker struct {
 	deriver ports.KeyDeriver
 	config  WorkerConfig
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	done   chan struct{}
+	processMu sync.Mutex
+	mu        sync.Mutex
+	cancel    context.CancelFunc
+	done      chan struct{}
 }
 
 func NewWorker(store JobStore, cipher security.CurationCipher, router Router, creator GeneratedCreator, deriver ports.KeyDeriver, config WorkerConfig) *Worker {
@@ -67,6 +68,8 @@ func (worker *Worker) ProcessOnce(ctx context.Context) (WorkerResult, error) {
 	if worker == nil || worker.store == nil || worker.creator == nil {
 		return WorkerResult{}, NewProviderError(ErrorUnavailable, errors.New("curation worker unavailable"))
 	}
+	worker.processMu.Lock()
+	defer worker.processMu.Unlock()
 	now := worker.config.Now().UTC()
 	job, found, err := worker.store.ClaimNext(ctx, now)
 	if err != nil || !found {
@@ -129,8 +132,15 @@ func (worker *Worker) Run(ctx context.Context) error {
 	if worker == nil {
 		return NewProviderError(ErrorUnavailable, errors.New("curation worker unavailable"))
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	worker.mu.Lock()
+	if worker.cancel != nil {
+		worker.mu.Unlock()
+		return errors.New("curation worker already running")
+	}
+	ctx, cancel := context.WithCancel(ctx)
 	worker.cancel = cancel
 	worker.done = make(chan struct{})
 	done := worker.done

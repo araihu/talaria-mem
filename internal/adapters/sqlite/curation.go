@@ -19,6 +19,8 @@ type CurationStore struct {
 	database *DB
 }
 
+const curationRunningLease = 5 * time.Minute
+
 // CurationQueueHealth is intentionally smaller than a job. It contains only
 // aggregate queue metadata safe for status and doctor output.
 type CurationQueueHealth struct {
@@ -131,6 +133,19 @@ func (store *CurationStore) ClaimNext(ctx context.Context, now time.Time) (curat
 	found := false
 	err := store.withTx(ctx, func(tx *sql.Tx) error {
 		queries := sqlc.New(tx)
+		if err := queries.ExpireRunningCurationJobs(ctx, sqlc.ExpireRunningCurationJobsParams{
+			UpdatedAt: formatTimestamp(now),
+			ExpiresAt: formatTimestamp(now),
+		}); err != nil {
+			return domain.MapSQLiteError(err)
+		}
+		if err := queries.RecoverStaleCurationJobs(ctx, sqlc.RecoverStaleCurationJobsParams{
+			UpdatedAt:   formatTimestamp(now),
+			UpdatedAt_2: formatTimestamp(now.Add(-curationRunningLease)),
+			ExpiresAt:   formatTimestamp(now),
+		}); err != nil {
+			return domain.MapSQLiteError(err)
+		}
 		row, err := queries.ReadClaimableCurationJob(ctx, sqlc.ReadClaimableCurationJobParams{NextAttemptAt: sql.NullString{String: formatTimestamp(now), Valid: true}, ExpiresAt: formatTimestamp(now)})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil

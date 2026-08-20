@@ -16,7 +16,11 @@ generated_tmp=$(mktemp -d "${TMPDIR:-/tmp}/talaria-codex-generated.XXXXXX")
 cleanup() { rm -rf "$schema_tmp" "$generated_tmp"; }
 trap cleanup 0 1 2 3 15
 
-codex --version
+codex_version=$(codex --version)
+case "$codex_version" in
+  "codex-cli 0.144.5") printf '%s\n' "$codex_version" ;;
+  *) printf 'Codex version mismatch: expected codex-cli 0.144.5, got %s\n' "$codex_version" >&2; exit 1 ;;
+esac
 codex app-server generate-json-schema --out "$schema_tmp"
 
 snapshot_dir=./api/codex/schema/0.144.5

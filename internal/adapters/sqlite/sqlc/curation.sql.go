@@ -48,6 +48,23 @@ func (q *Queries) DeleteCurationSessionCounter(ctx context.Context, sessionDiges
 	return err
 }
 
+const expireRunningCurationJobs = `-- name: ExpireRunningCurationJobs :exec
+UPDATE curation_jobs
+SET state = 'terminal', thread_locator_ciphertext = X'', snapshot_ciphertext = X'',
+    next_attempt_at = NULL, safe_error_class = 'persistence', updated_at = ?
+WHERE state = 'running' AND expires_at <= ?
+`
+
+type ExpireRunningCurationJobsParams struct {
+	UpdatedAt string `json:"updated_at"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+func (q *Queries) ExpireRunningCurationJobs(ctx context.Context, arg ExpireRunningCurationJobsParams) error {
+	_, err := q.db.ExecContext(ctx, expireRunningCurationJobs, arg.UpdatedAt, arg.ExpiresAt)
+	return err
+}
+
 const finishCurationJob = `-- name: FinishCurationJob :execrows
 UPDATE curation_jobs
 SET state = ?, thread_locator_ciphertext = X'', snapshot_ciphertext = X'',
@@ -352,6 +369,23 @@ func (q *Queries) ReadCurationSessionCounter(ctx context.Context, sessionDigest 
 		&i.ExpiresAt,
 	)
 	return i, err
+}
+
+const recoverStaleCurationJobs = `-- name: RecoverStaleCurationJobs :exec
+UPDATE curation_jobs
+SET state = 'pending', next_attempt_at = NULL, updated_at = ?
+WHERE state = 'running' AND updated_at <= ? AND expires_at > ?
+`
+
+type RecoverStaleCurationJobsParams struct {
+	UpdatedAt   string `json:"updated_at"`
+	UpdatedAt_2 string `json:"updated_at_2"`
+	ExpiresAt   string `json:"expires_at"`
+}
+
+func (q *Queries) RecoverStaleCurationJobs(ctx context.Context, arg RecoverStaleCurationJobsParams) error {
+	_, err := q.db.ExecContext(ctx, recoverStaleCurationJobs, arg.UpdatedAt, arg.UpdatedAt_2, arg.ExpiresAt)
+	return err
 }
 
 const retryCurationJob = `-- name: RetryCurationJob :execrows

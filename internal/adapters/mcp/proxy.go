@@ -116,6 +116,7 @@ func (proxy *Proxy) forward(parent context.Context, token string, frame []byte) 
 	if err != nil || len(body) > domain.MaxHTTPRequestBodyBytes {
 		return ErrProxyUnavailable
 	}
+	defer clearProxyBytes(body)
 	if len(body) == 0 {
 		return nil
 	}
@@ -126,4 +127,10 @@ func (proxy *Proxy) forward(parent context.Context, token string, frame []byte) 
 		return ErrProxyUnavailable
 	}
 	return nil
+}
+
+func clearProxyBytes(value []byte) {
+	for index := range value {
+		value[index] = 0
+	}
 }

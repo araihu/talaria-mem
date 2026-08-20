@@ -138,7 +138,7 @@ func TestStartClientMapsHandshakeTimeout(t *testing.T) {
 }
 
 func TestAppServerArgsDefaultToCodexSubcommand(t *testing.T) {
-	if got := appServerArgs(nil); len(got) != 1 || got[0] != "app-server" {
+	if got := appServerArgs(nil); len(got) != 2 || got[0] != "app-server" || got[1] != "--stdio" {
 		t.Fatalf("appServerArgs(nil) = %#v", got)
 	}
 	provided := []string{"--stdio"}

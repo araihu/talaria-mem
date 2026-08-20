@@ -109,6 +109,32 @@ func TestNewClientRejectsRemotePlainHTTPAndRedirects(t *testing.T) {
 	}
 }
 
+func TestNewClientUsesDirectTransport(t *testing.T) {
+	client, err := NewClient(ClientConfig{BaseURL: "http://127.0.0.1:11434/v1", Model: "model", Scanner: snapshotScanner{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", client.httpClient.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("compatible provider transport inherited an ambient proxy")
+	}
+}
+
+func TestCuratorRevalidatesProviderDestination(t *testing.T) {
+	client, err := NewClient(ClientConfig{BaseURL: "http://127.0.0.1:11434/v1", Model: "model", Scanner: snapshotScanner{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.baseURL = "http://example.com/v1"
+	_, err = client.Curate(context.Background(), curation.CurationRequest{Snapshot: []byte(`{"turns":[]}`)})
+	if !IsClass(err, curation.ErrorUnavailable) {
+		t.Fatalf("Curate() error = %v, want unavailable", err)
+	}
+}
+
 func TestCuratorRedactsOutboundSecretAndRescans(t *testing.T) {
 	var body string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -48,6 +48,16 @@ func TestBuildSnapshotExcludesRawToolInputsAndTranscriptPaths(t *testing.T) {
 	}
 }
 
+func TestSnapshotInputCannotMarshalRawHostFields(t *testing.T) {
+	data, err := json.Marshal(SnapshotInput{TranscriptPath: "/private/transcript", RawToolInput: "secret-command"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "transcript") || strings.Contains(string(data), "secret-command") {
+		t.Fatalf("raw host fields were serialized: %s", data)
+	}
+}
+
 func TestBuildSnapshotRedactsAndRescansFindings(t *testing.T) {
 	snapshot, err := BuildSnapshot(context.Background(), SnapshotInput{
 		Turns: []SnapshotTurn{{Role: "assistant", Text: "safe secret-value"}},

@@ -24,13 +24,13 @@ type SnapshotTool struct {
 }
 
 type SnapshotInput struct {
-	Turns []SnapshotTurn
-	Tools []SnapshotTool
+	Turns []SnapshotTurn `json:"-"`
+	Tools []SnapshotTool `json:"-"`
 
 	// These fields are intentionally not serialized. They make the boundary
 	// explicit for adapters that still receive a complete host event.
-	TranscriptPath string
-	RawToolInput   string
+	TranscriptPath string `json:"-"`
+	RawToolInput   string `json:"-"`
 }
 
 type snapshotWire struct {

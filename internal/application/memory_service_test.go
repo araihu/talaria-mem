@@ -71,6 +71,9 @@ func (tx *serviceTx) MoveCurrentRevision(_ context.Context, memoryID, expected s
 		return domain.NewError(domain.CodeRevisionConflict, "revision conflict", false)
 	}
 	memory.CurrentRevisionID, memory.Kind, memory.Trust, memory.Lifecycle, memory.UpdatedAt = revision.ID, revision.Kind, revision.Trust, revision.Lifecycle, revision.CreatedAt
+	if revision.Trust != domain.TrustGenerated {
+		memory.GeneratedFingerprint = ""
+	}
 	tx.repo.memories[memoryID] = memory
 	return nil
 }
@@ -205,5 +208,39 @@ func TestMemoryServiceGeneratedCreationIsServerAssignedAndAtomic(t *testing.T) {
 	}
 	if len(repo.memories) != 1 {
 		t.Fatalf("failed batch mutated %d memories", len(repo.memories))
+	}
+}
+
+func TestMemoryServiceConfirmGeneratedClearsGeneratedFingerprint(t *testing.T) {
+	repo := newServiceRepo()
+	scanner := &serviceScanner{status: ports.ScanClean}
+	service := NewMemoryService(repo, scanner, serviceClock{now: time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)}, nil)
+	created, err := service.CreateGenerated(context.Background(), GeneratedMutationRequest{
+		WorkspaceID: "workspace", Kind: domain.MemoryKindState, Title: "generated", Content: "safe",
+	}, GeneratedSourceAutomatic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memory, revision, err := repo.ReadCurrent(context.Background(), created.MemoryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	confirmed, err := service.Confirm(context.Background(), MutationRequest{
+		Actor:              ActorCLI,
+		MemoryID:           memory.ID,
+		ExpectedRevisionID: revision.ID,
+	})
+	if err != nil {
+		t.Fatalf("Confirm() error = %v", err)
+	}
+	if confirmed.Trust != domain.TrustVerified {
+		t.Fatalf("confirmed trust = %q", confirmed.Trust)
+	}
+	confirmedMemory, confirmedRevision, err := repo.ReadCurrent(context.Background(), memory.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if confirmedMemory.Trust != domain.TrustVerified || confirmedRevision.Trust != domain.TrustVerified || confirmedMemory.GeneratedFingerprint != "" {
+		t.Fatalf("confirmed state = %#v %#v", confirmedMemory, confirmedRevision)
 	}
 }

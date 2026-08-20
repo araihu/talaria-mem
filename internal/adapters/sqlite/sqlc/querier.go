@@ -21,6 +21,7 @@ type Querier interface {
 	DeleteCurationSessionCounter(ctx context.Context, sessionDigest []byte) error
 	DeleteFTSRow(ctx context.Context, memoryID string) error
 	DeleteUsageBefore(ctx context.Context, day string) (int64, error)
+	ExpireRunningCurationJobs(ctx context.Context, arg ExpireRunningCurationJobsParams) error
 	FinishCurationJob(ctx context.Context, arg FinishCurationJobParams) (int64, error)
 	IncrementCurationSessionCounter(ctx context.Context, arg IncrementCurationSessionCounterParams) error
 	InsertCurationJob(ctx context.Context, arg InsertCurationJobParams) error
@@ -44,6 +45,7 @@ type Querier interface {
 	ReadWorkspaceByIDOrName(ctx context.Context, arg ReadWorkspaceByIDOrNameParams) (Workspace, error)
 	RebuildEligibleFTSRows(ctx context.Context) error
 	RecordProjectionFailure(ctx context.Context, arg RecordProjectionFailureParams) error
+	RecoverStaleCurationJobs(ctx context.Context, arg RecoverStaleCurationJobsParams) error
 	ResetProjectionState(ctx context.Context, arg ResetProjectionStateParams) error
 	RetryCurationJob(ctx context.Context, arg RetryCurationJobParams) (int64, error)
 	StoreActivationJournal(ctx context.Context, arg StoreActivationJournalParams) (int64, error)

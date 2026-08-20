@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ type ClientConfig struct {
 }
 
 type Client struct {
+	baseURL    string
 	endpoint   string
 	model      string
 	credential string
@@ -49,13 +51,25 @@ func NewClient(configuration ClientConfig) (*Client, error) {
 	if configuration.Timeout <= 0 {
 		configuration.Timeout = 90 * time.Second
 	}
+	dialTimeout := configuration.Timeout
+	if dialTimeout > 10*time.Second {
+		dialTimeout = 10 * time.Second
+	}
+	transport := &http.Transport{
+		Proxy:                 nil,
+		DialContext:           (&net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   configuration.Timeout,
+		ResponseHeaderTimeout: configuration.Timeout,
+		ExpectContinueTimeout: time.Second,
+	}
 	return &Client{
+		baseURL:    strings.TrimRight(configuration.BaseURL, "/"),
 		endpoint:   strings.TrimRight(configuration.BaseURL, "/") + "/chat/completions",
 		model:      configuration.Model,
 		credential: configuration.Credential,
 		timeout:    configuration.Timeout,
 		scanner:    configuration.Scanner,
-		httpClient: &http.Client{Timeout: configuration.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		httpClient: &http.Client{Timeout: configuration.Timeout, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 	}, nil
 }
 
@@ -65,6 +79,9 @@ func (client *Client) Curate(parent context.Context, request curation.CurationRe
 	}
 	if parent == nil {
 		parent = context.Background()
+	}
+	if err := providerconfig.ValidateBaseURL(client.baseURL); err != nil {
+		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorUnavailable, err)
 	}
 	safeSnapshot, err := sanitizeField(parent, client.scanner, ports.FieldContent, string(request.Snapshot))
 	if err != nil {
@@ -89,6 +106,7 @@ func (client *Client) Curate(parent context.Context, request curation.CurationRe
 	if err != nil {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorInvalidOutput, err)
 	}
+	defer clearBytes(body)
 	ctx, cancel := context.WithTimeout(parent, client.timeout)
 	defer cancel()
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, client.endpoint, bytes.NewReader(body))
@@ -111,11 +129,7 @@ func (client *Client) Curate(parent context.Context, request curation.CurationRe
 	if err != nil {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorUnavailable, err)
 	}
-	defer func() {
-		for index := range responseBody {
-			responseBody[index] = 0
-		}
-	}()
+	defer clearBytes(responseBody)
 	if len(responseBody) > maxProviderResponseBytes {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorInvalidOutput, errors.New("provider response too large"))
 	}
@@ -148,6 +162,12 @@ func classifyHTTPStatus(status int) curation.ErrorClass {
 		return curation.ErrorPolicyRefusal
 	default:
 		return curation.ErrorUnavailable
+	}
+}
+
+func clearBytes(value []byte) {
+	for index := range value {
+		value[index] = 0
 	}
 }
 
@@ -235,6 +255,9 @@ func decodeProviderCandidates(text string) ([]curation.Candidate, error) {
 			return nil, curation.NewProviderError(curation.ErrorInvalidOutput, fmt.Errorf("candidate %d is invalid", index))
 		}
 		items[index] = curation.Candidate{Kind: candidate.Kind, Title: candidate.Title, Content: candidate.Content, Tags: candidate.Tags, ResolutionState: candidate.ResolutionState}
+	}
+	if err := curation.ValidateCandidates(items, nil); err != nil {
+		return nil, err
 	}
 	return items, nil
 }

@@ -101,6 +101,27 @@ func TestCurationStoreClaimOrderingRetryFinishAndPurge(t *testing.T) {
 	}
 }
 
+func TestCurationStoreRecoversStaleRunningJobAfterRestart(t *testing.T) {
+	database := openTestDB(t)
+	workspaceID := seedCurationWorkspace(t, database, "recovery")
+	store := NewCurationStore(database)
+	now := time.Now().UTC()
+	if _, _, err := store.Enqueue(context.Background(), curation.Job{ID: "stale-job", WorkspaceID: workspaceID, Reason: curation.ReasonPeriodic, SessionDigest: []byte{7}, SourceWatermark: 1, ThreadLocatorCiphertext: []byte{1}, SnapshotCiphertext: []byte{2}, ExpiresAt: now.Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	claimed, found, err := store.ClaimNext(context.Background(), now)
+	if err != nil || !found || claimed.ID != "stale-job" {
+		t.Fatalf("initial claim = %+v found=%v err=%v", claimed, found, err)
+	}
+	if _, err := database.SQL().Exec(`UPDATE curation_jobs SET updated_at = ? WHERE id = ?`, formatTimestamp(now.Add(-curationRunningLease-time.Second)), claimed.ID); err != nil {
+		t.Fatal(err)
+	}
+	recovered, found, err := store.ClaimNext(context.Background(), now)
+	if err != nil || !found || recovered.ID != claimed.ID || recovered.State != curation.JobRunning || recovered.AttemptCount != 2 {
+		t.Fatalf("recovered claim = %+v found=%v err=%v", recovered, found, err)
+	}
+}
+
 func TestCurationStoreSessionCounterExpiryAndEnd(t *testing.T) {
 	database := openTestDB(t)
 	store := NewCurationStore(database)

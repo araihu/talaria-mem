@@ -46,6 +46,9 @@ func (curator *Curator) Curate(parent context.Context, request curation.Curation
 	if curator == nil || curator.client == nil {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorUnavailable, errors.New("Codex curator unavailable"))
 	}
+	if parent == nil {
+		parent = context.Background()
+	}
 	threadID, err := decodeThreadLocator(request.ThreadLocator)
 	if err != nil {
 		return curation.CurationResult{}, curation.NewProviderError(curation.ErrorDomainValidation, err)
@@ -144,7 +147,10 @@ func (curator *Curator) waitForOutput(ctx context.Context) (string, error) {
 				return "", err
 			}
 			return "", curation.NewProviderError(curation.ErrorUnavailable, errors.New("Codex process closed"))
-		case event := <-curator.client.Events():
+		case event, ok := <-curator.client.Events():
+			if !ok {
+				return "", curation.NewProviderError(curation.ErrorUnavailable, errors.New("Codex event stream closed"))
+			}
 			if event.IsRequest {
 				_ = curator.client.Close()
 				return "", curation.NewProviderError(curation.ErrorSuspiciousContent, errors.New("Codex requested a tool or approval"))
@@ -223,6 +229,9 @@ func decodeCandidates(text string) ([]curation.Candidate, error) {
 			return nil, curation.NewProviderError(curation.ErrorInvalidOutput, fmt.Errorf("candidate %d is invalid", index))
 		}
 		candidates[index] = curation.Candidate{Kind: candidate.Kind, Title: candidate.Title, Content: candidate.Content, Tags: candidate.Tags, ResolutionState: candidate.ResolutionState}
+	}
+	if err := curation.ValidateCandidates(candidates, nil); err != nil {
+		return nil, err
 	}
 	return candidates, nil
 }

@@ -80,6 +80,9 @@ func (service *EnqueueService) Enqueue(ctx context.Context, request EnqueueReque
 	if service == nil || service.source == nil || service.scanner == nil || service.store == nil {
 		return EnqueueResult{}, NewProviderError(ErrorUnavailable, errors.New("curation enqueue unavailable"))
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if request.WorkspaceID == "" || request.SessionID == "" || !request.Reason.Valid() || request.Reason == ReasonInline || request.SourceWatermark < 0 {
 		return EnqueueResult{}, NewProviderError(ErrorDomainValidation, errors.New("invalid curation enqueue request"))
 	}
@@ -93,6 +96,8 @@ func (service *EnqueueService) Enqueue(ctx context.Context, request EnqueueReque
 	if len(captured.ThreadLocator) == 0 || len(captured.ThreadLocator) > MaxLocatorBytes || len(captured.Snapshot) == 0 || len(captured.Snapshot) > MaxSnapshotBytes {
 		return EnqueueResult{}, NewProviderError(ErrorDomainValidation, errors.New("captured snapshot exceeds bounds"))
 	}
+	defer clearCaptureBytes(captured.ThreadLocator)
+	defer clearCaptureBytes(captured.Snapshot)
 	snapshot, err := service.appendPrompt(ctx, captured.Snapshot, request.CurrentPrompt)
 	if err != nil {
 		return EnqueueResult{}, err
@@ -100,12 +105,14 @@ func (service *EnqueueService) Enqueue(ctx context.Context, request EnqueueReque
 	if len(snapshot) > MaxSnapshotBytes {
 		return EnqueueResult{}, NewProviderError(ErrorDomainValidation, errors.New("sanitized snapshot exceeds capture limit"))
 	}
+	defer clearCaptureBytes(snapshot)
 	digest, err := service.cipher.SessionDigest(ctx, []byte(request.SessionID))
 	if err != nil {
 		return EnqueueResult{}, NewProviderError(ErrorUnavailable, errors.New("session digest unavailable"))
 	}
 	jobID := uuid.NewString()
 	metadata := JobMetadata(request.WorkspaceID, request.Reason, request.SourceWatermark)
+	defer clearCaptureBytes(metadata)
 	locatorCiphertext, err := service.cipher.SealLocator(ctx, jobID, metadata, captured.ThreadLocator)
 	if err != nil {
 		return EnqueueResult{}, NewProviderError(ErrorUnavailable, errors.New("thread locator encryption failed"))
@@ -120,6 +127,12 @@ func (service *EnqueueService) Enqueue(ctx context.Context, request EnqueueReque
 		return EnqueueResult{}, NewProviderError(ErrorPersistence, errors.New("curation job persistence failed"))
 	}
 	return EnqueueResult{Enqueued: created, Job: job}, nil
+}
+
+func clearCaptureBytes(value []byte) {
+	for index := range value {
+		value[index] = 0
+	}
 }
 
 func (service *EnqueueService) appendPrompt(ctx context.Context, snapshot []byte, prompt string) ([]byte, error) {

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -75,24 +76,8 @@ func BuildCuratedSchema(schemaDir string, manifest Manifest) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve schema directory: %w", err)
 	}
-	for _, method := range manifest.Methods {
-		for _, root := range []string{method.Params, method.Result} {
-			path := filepath.Join(absoluteSchemaDir, root+".json")
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil, fmt.Errorf("read schema root %q: %w", root, err)
-			}
-			var document struct {
-				Title string `json:"title"`
-			}
-			if err := json.Unmarshal(data, &document); err != nil {
-				return nil, fmt.Errorf("decode schema root %q: %w", root, err)
-			}
-			wantTitle := filepath.Base(root)
-			if document.Title != wantTitle {
-				return nil, fmt.Errorf("schema root %q has title %q, want %q", root, document.Title, wantTitle)
-			}
-		}
+	if err := validateManifestSchemaReferences(absoluteSchemaDir, manifest); err != nil {
+		return nil, err
 	}
 
 	definitions := map[string]any{}
@@ -152,6 +137,183 @@ func BuildCuratedSchema(schemaDir string, manifest Manifest) ([]byte, error) {
 	}
 	document := map[string]any{"$schema": "http://json-schema.org/draft-07/schema#", "title": "CuratedProtocol", "type": "object", "properties": rootProperties, "definitions": definitions}
 	return json.MarshalIndent(document, "", "  ")
+}
+
+// validateManifestSchemaReferences verifies every schema edge reachable from
+// manifest roots. The checked-in snapshot is allowed to reference local
+// definitions or other files below its versioned directory, but never a path
+// outside that directory or an unresolved JSON pointer.
+func validateManifestSchemaReferences(schemaDir string, manifest Manifest) error {
+	loaded := make(map[string]map[string]any)
+	visited := make(map[string]struct{})
+	var load func(string) (map[string]any, error)
+	load = func(relative string) (map[string]any, error) {
+		if document, ok := loaded[relative]; ok {
+			return document, nil
+		}
+		path, err := schemaPath(schemaDir, relative)
+		if err != nil {
+			return nil, err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read schema %q: %w", relative, err)
+		}
+		var document map[string]any
+		if err := json.Unmarshal(data, &document); err != nil {
+			return nil, fmt.Errorf("decode schema %q: %w", relative, err)
+		}
+		if document == nil {
+			return nil, fmt.Errorf("schema %q must be an object", relative)
+		}
+		loaded[relative] = document
+		return document, nil
+	}
+
+	var visit func(string, map[string]any, any, map[string]struct{}) error
+	visit = func(relative string, document map[string]any, node any, active map[string]struct{}) error {
+		switch value := node.(type) {
+		case map[string]any:
+			if rawReference, ok := value["$ref"]; ok {
+				reference, ok := rawReference.(string)
+				if !ok || reference == "" {
+					return fmt.Errorf("schema %q has invalid $ref", relative)
+				}
+				targetRelative, fragment, err := resolveSchemaReference(schemaDir, relative, reference)
+				if err != nil {
+					return fmt.Errorf("schema %q: %w", relative, err)
+				}
+				targetDocument, err := load(targetRelative)
+				if err != nil {
+					return err
+				}
+				target, err := resolveJSONPointer(targetDocument, fragment)
+				if err != nil {
+					return fmt.Errorf("schema %q reference %q: %w", relative, reference, err)
+				}
+				key := targetRelative + "#" + fragment
+				if _, seen := active[key]; !seen {
+					nextActive := make(map[string]struct{}, len(active)+1)
+					for item := range active {
+						nextActive[item] = struct{}{}
+					}
+					nextActive[key] = struct{}{}
+					if err := visit(targetRelative, targetDocument, target, nextActive); err != nil {
+						return err
+					}
+				}
+			}
+			for key, child := range value {
+				if key == "$ref" {
+					continue
+				}
+				if err := visit(relative, document, child, active); err != nil {
+					return err
+				}
+			}
+		case []any:
+			for _, child := range value {
+				if err := visit(relative, document, child, active); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	roots := make(map[string]struct{})
+	for _, method := range manifest.Methods {
+		roots[method.Params] = struct{}{}
+		roots[method.Result] = struct{}{}
+	}
+	for root := range roots {
+		document, err := load(root + ".json")
+		if err != nil {
+			return fmt.Errorf("read schema root %q: %w", root, err)
+		}
+		wantTitle := filepath.Base(root)
+		if title, _ := document["title"].(string); title != wantTitle {
+			return fmt.Errorf("schema root %q has title %q, want %q", root, title, wantTitle)
+		}
+		if _, ok := visited[root+".json"]; ok {
+			continue
+		}
+		visited[root+".json"] = struct{}{}
+		if err := visit(root+".json", document, document, map[string]struct{}{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func schemaPath(schemaDir, relative string) (string, error) {
+	if relative == "" || filepath.IsAbs(relative) {
+		return "", fmt.Errorf("schema reference %q is outside versioned schema directory", relative)
+	}
+	path := filepath.Clean(filepath.Join(schemaDir, relative))
+	relativePath, err := filepath.Rel(schemaDir, path)
+	if err != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("schema reference %q is outside versioned schema directory", relative)
+	}
+	resolvedDir, dirErr := filepath.EvalSymlinks(schemaDir)
+	resolvedPath, pathErr := filepath.EvalSymlinks(path)
+	if dirErr == nil && pathErr == nil {
+		resolvedRelative, relativeErr := filepath.Rel(resolvedDir, resolvedPath)
+		if relativeErr != nil || resolvedRelative == ".." || strings.HasPrefix(resolvedRelative, ".."+string(filepath.Separator)) {
+			return "", fmt.Errorf("schema reference %q is outside versioned schema directory", relative)
+		}
+	} else if pathErr != nil && !errors.Is(pathErr, os.ErrNotExist) {
+		return "", fmt.Errorf("resolve schema reference %q: %w", relative, pathErr)
+	}
+	return path, nil
+}
+
+func resolveSchemaReference(schemaDir, currentRelative, reference string) (string, string, error) {
+	if strings.HasPrefix(reference, "#") {
+		return currentRelative, strings.TrimPrefix(reference, "#"), nil
+	}
+	if strings.Contains(reference, "://") || filepath.IsAbs(reference) {
+		return "", "", fmt.Errorf("schema reference %q is outside versioned schema directory", reference)
+	}
+	pathPart, fragment, _ := strings.Cut(reference, "#")
+	if pathPart == "" {
+		return "", "", errors.New("schema reference has empty target")
+	}
+	relative := filepath.Clean(filepath.Join(filepath.Dir(currentRelative), pathPart))
+	if _, err := schemaPath(schemaDir, relative); err != nil {
+		return "", "", err
+	}
+	return relative, fragment, nil
+}
+
+func resolveJSONPointer(document any, fragment string) (any, error) {
+	if fragment == "" {
+		return document, nil
+	}
+	if !strings.HasPrefix(fragment, "/") {
+		return nil, fmt.Errorf("invalid JSON pointer fragment %q", fragment)
+	}
+	current := document
+	for _, component := range strings.Split(strings.TrimPrefix(fragment, "/"), "/") {
+		component = strings.ReplaceAll(strings.ReplaceAll(component, "~1", "/"), "~0", "~")
+		switch value := current.(type) {
+		case map[string]any:
+			next, ok := value[component]
+			if !ok {
+				return nil, fmt.Errorf("JSON pointer component %q is missing", component)
+			}
+			current = next
+		case []any:
+			index, err := strconv.Atoi(component)
+			if err != nil || index < 0 || index >= len(value) {
+				return nil, fmt.Errorf("JSON pointer index %q is invalid", component)
+			}
+			current = value[index]
+		default:
+			return nil, fmt.Errorf("JSON pointer cannot descend through %T", current)
+		}
+	}
+	return current, nil
 }
 
 func Generate(schemaDir, manifestPath, outputDir string) error {

@@ -5,9 +5,32 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestMinimalEnvironmentDropsAmbientSecretsAndProxySettings(t *testing.T) {
+	got := minimalEnvironment([]string{
+		"PATH=/bin",
+		"HOME=/tmp/home",
+		"LC_ALL=en_US.UTF-8",
+		"OPENAI_API_KEY=secret",
+		"HTTP_PROXY=http://proxy.invalid",
+		"TALARIA_SECRET=secret",
+	})
+	joined := strings.Join(got, "\n")
+	for _, value := range []string{"OPENAI_API_KEY=secret", "HTTP_PROXY=http://proxy.invalid", "TALARIA_SECRET=secret"} {
+		if strings.Contains(joined, value) {
+			t.Fatalf("minimalEnvironment retained %q: %v", value, got)
+		}
+	}
+	for _, value := range []string{"PATH=/bin", "HOME=/tmp/home", "LC_ALL=en_US.UTF-8"} {
+		if !strings.Contains(joined, value) {
+			t.Fatalf("minimalEnvironment dropped %q: %v", value, got)
+		}
+	}
+}
 
 func TestProcessStartsConfiguredJSONLChild(t *testing.T) {
 	process, err := StartProcess(context.Background(), ProcessConfig{

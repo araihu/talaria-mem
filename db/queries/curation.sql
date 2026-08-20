@@ -47,6 +47,17 @@ WHERE state IN ('pending', 'retry_wait')
 ORDER BY priority DESC, created_at ASC, id ASC
 LIMIT 1;
 
+-- name: RecoverStaleCurationJobs :exec
+UPDATE curation_jobs
+SET state = 'pending', next_attempt_at = NULL, updated_at = ?
+WHERE state = 'running' AND updated_at <= ? AND expires_at > ?;
+
+-- name: ExpireRunningCurationJobs :exec
+UPDATE curation_jobs
+SET state = 'terminal', thread_locator_ciphertext = X'', snapshot_ciphertext = X'',
+    next_attempt_at = NULL, safe_error_class = 'persistence', updated_at = ?
+WHERE state = 'running' AND expires_at <= ?;
+
 -- name: ClaimCurationJob :execrows
 UPDATE curation_jobs
 SET state = 'running', attempt_count = attempt_count + 1,

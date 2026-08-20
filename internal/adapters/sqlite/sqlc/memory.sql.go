@@ -171,7 +171,9 @@ func (q *Queries) InsertEligibleFTSRow(ctx context.Context, id string) error {
 
 const moveCurrentRevision = `-- name: MoveCurrentRevision :execrows
 UPDATE memories
-SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?, updated_at = ?
+SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?,
+    generated_fingerprint = CASE WHEN ? = 'generated' THEN generated_fingerprint ELSE '' END,
+    updated_at = ?
 WHERE id = ? AND current_revision_id = ?
 `
 
@@ -180,6 +182,7 @@ type MoveCurrentRevisionParams struct {
 	Kind                string         `json:"kind"`
 	Trust               string         `json:"trust"`
 	Lifecycle           string         `json:"lifecycle"`
+	Column5             interface{}    `json:"column_5"`
 	UpdatedAt           string         `json:"updated_at"`
 	ID                  string         `json:"id"`
 	CurrentRevisionID_2 sql.NullString `json:"current_revision_id_2"`
@@ -191,6 +194,7 @@ func (q *Queries) MoveCurrentRevision(ctx context.Context, arg MoveCurrentRevisi
 		arg.Kind,
 		arg.Trust,
 		arg.Lifecycle,
+		arg.Column5,
 		arg.UpdatedAt,
 		arg.ID,
 		arg.CurrentRevisionID_2,
@@ -203,7 +207,9 @@ func (q *Queries) MoveCurrentRevision(ctx context.Context, arg MoveCurrentRevisi
 
 const moveInitialCurrentRevision = `-- name: MoveInitialCurrentRevision :execrows
 UPDATE memories
-SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?, updated_at = ?
+SET current_revision_id = ?, kind = ?, trust = ?, lifecycle = ?,
+    generated_fingerprint = CASE WHEN ? = 'generated' THEN generated_fingerprint ELSE '' END,
+    updated_at = ?
 WHERE id = ? AND current_revision_id IS NULL
 `
 
@@ -212,6 +218,7 @@ type MoveInitialCurrentRevisionParams struct {
 	Kind              string         `json:"kind"`
 	Trust             string         `json:"trust"`
 	Lifecycle         string         `json:"lifecycle"`
+	Column5           interface{}    `json:"column_5"`
 	UpdatedAt         string         `json:"updated_at"`
 	ID                string         `json:"id"`
 }
@@ -222,6 +229,7 @@ func (q *Queries) MoveInitialCurrentRevision(ctx context.Context, arg MoveInitia
 		arg.Kind,
 		arg.Trust,
 		arg.Lifecycle,
+		arg.Column5,
 		arg.UpdatedAt,
 		arg.ID,
 	)

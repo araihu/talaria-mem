@@ -40,6 +40,9 @@ func (router Router) Validate() error {
 }
 
 func (router Router) Curate(ctx context.Context, request CurationRequest) (CurationResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if !router.Enabled {
 		return CurationResult{}, ErrCurationDisabled
 	}

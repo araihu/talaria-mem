@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,7 @@ type ProcessConfig struct {
 type Process struct {
 	command *exec.Cmd
 	conn    *jsonrpc2.Conn
+	stderr  *limitedWriter
 	done    chan struct{}
 	closed  chan struct{}
 	cancel  context.CancelFunc
@@ -65,7 +67,7 @@ func StartProcess(parent context.Context, configuration ProcessConfig) (*Process
 	if configuration.Env != nil {
 		command.Env = append([]string(nil), configuration.Env...)
 	} else {
-		command.Env = os.Environ()
+		command.Env = minimalEnvironment(os.Environ())
 	}
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -78,7 +80,8 @@ func StartProcess(parent context.Context, configuration ProcessConfig) (*Process
 		_ = stdout.Close()
 		return nil, curation.NewProviderError(curation.ErrorUnavailable, err)
 	}
-	command.Stderr = &limitedWriter{limit: 16 << 10}
+	stderr := &limitedWriter{limit: 16 << 10}
+	command.Stderr = stderr
 	if err := command.Start(); err != nil {
 		cancel()
 		_ = stdin.Close()
@@ -91,9 +94,37 @@ func StartProcess(parent context.Context, configuration ProcessConfig) (*Process
 		handler = rejectRequestsHandler{}
 	}
 	connection := jsonrpc2.NewConn(processContext, jsonrpc2.NewPlainObjectStream(stream), handler)
-	process := &Process{command: command, conn: connection, done: make(chan struct{}), closed: make(chan struct{}), cancel: cancel}
+	process := &Process{command: command, conn: connection, stderr: stderr, done: make(chan struct{}), closed: make(chan struct{}), cancel: cancel}
 	go process.wait()
 	return process, nil
+}
+
+// minimalEnvironment keeps the app-server child reproducible and prevents
+// unrelated ambient credentials or proxy settings from crossing the process
+// boundary. Callers that deliberately need more may provide ProcessConfig.Env.
+func minimalEnvironment(values []string) []string {
+	allowed := map[string]struct{}{
+		"PATH": {}, "HOME": {}, "CODEX_HOME": {}, "TMPDIR": {}, "TMP": {}, "TEMP": {},
+		"LANG": {}, "TERM": {}, "USER": {}, "LOGNAME": {}, "SHELL": {},
+		"XDG_CONFIG_HOME": {}, "XDG_CACHE_HOME": {}, "SSL_CERT_FILE": {}, "SSL_CERT_DIR": {},
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(allowed))
+	for _, item := range values {
+		key, _, found := strings.Cut(item, "=")
+		if !found {
+			continue
+		}
+		if _, ok := allowed[key]; !ok && !strings.HasPrefix(key, "LC_") {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, item)
+	}
+	return result
 }
 
 func (process *Process) Connection() *jsonrpc2.Conn {
@@ -121,6 +152,9 @@ func (process *Process) Err() error {
 
 func (process *Process) wait() {
 	err := process.command.Wait()
+	if process.stderr != nil {
+		process.stderr.Clear()
+	}
 	process.mu.Lock()
 	if err != nil {
 		process.err = curation.NewProviderError(curation.ErrorUnavailable, err)
@@ -194,6 +228,16 @@ func (writer *limitedWriter) Write(data []byte) (int, error) {
 		writer.data = append(writer.data, data...)
 	}
 	return originalLength, nil
+}
+
+func (writer *limitedWriter) Clear() {
+	if writer == nil {
+		return
+	}
+	for index := range writer.data {
+		writer.data[index] = 0
+	}
+	writer.data = nil
 }
 
 type rejectRequestsHandler struct{}

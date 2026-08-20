@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/guilhermecastro/talaria-mem/internal/domain"
 	"github.com/guilhermecastro/talaria-mem/internal/ports"
@@ -57,6 +58,7 @@ func (service *MemoryService) CreateGeneratedBatch(ctx context.Context, requests
 		revision domain.MemoryRevision
 	}
 	preparedRows := make([]prepared, len(requests))
+	seenFingerprints := make(map[string]struct{}, len(requests))
 	lookup, hasLookup := service.Repository.(generatedFingerprintLookup)
 	for index, request := range requests {
 		if request.WorkspaceID == "" {
@@ -94,6 +96,13 @@ func (service *MemoryService) CreateGeneratedBatch(ctx context.Context, requests
 		if err != nil {
 			return nil, err
 		}
+		if len(fingerprint) == 0 || len(fingerprint) > 128 || strings.ContainsAny(fingerprint, "\x00\r\n") {
+			return nil, domain.NewError(domain.CodeValidation, "generated fingerprint is invalid", false)
+		}
+		if _, duplicate := seenFingerprints[fingerprint]; duplicate {
+			continue
+		}
+		seenFingerprints[fingerprint] = struct{}{}
 		if hasLookup {
 			exists, lookupErr := lookup.ActiveGeneratedFingerprintExists(ctx, request.WorkspaceID, fingerprint)
 			if lookupErr != nil {
