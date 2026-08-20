@@ -67,3 +67,12 @@ SELECT
 FROM memories
 JOIN memory_revisions AS revisions ON revisions.id = memories.current_revision_id
 WHERE memories.id = ?;
+
+-- name: ActiveGeneratedFingerprintExists :one
+SELECT EXISTS(
+    SELECT 1 FROM memories
+    WHERE workspace_id = ?
+      AND generated_fingerprint = ?
+      AND trust = 'generated'
+      AND lifecycle = 'active'
+);

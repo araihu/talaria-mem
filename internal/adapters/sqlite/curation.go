@@ -300,6 +300,10 @@ func mergeCurationJobs(existing, incoming curation.Job, now time.Time) curation.
 	}
 	merged.ThreadLocatorCiphertext = cloneBytes(incoming.ThreadLocatorCiphertext)
 	merged.SnapshotCiphertext = cloneBytes(incoming.SnapshotCiphertext)
+	if merged.State == curation.JobRetryWait {
+		merged.State = curation.JobPending
+		merged.NextAttemptAt = nil
+	}
 	if incoming.ExpiresAt.After(merged.ExpiresAt) {
 		merged.ExpiresAt = incoming.ExpiresAt
 	}

@@ -10,6 +10,28 @@ import (
 	"database/sql"
 )
 
+const activeGeneratedFingerprintExists = `-- name: ActiveGeneratedFingerprintExists :one
+SELECT EXISTS(
+    SELECT 1 FROM memories
+    WHERE workspace_id = ?
+      AND generated_fingerprint = ?
+      AND trust = 'generated'
+      AND lifecycle = 'active'
+)
+`
+
+type ActiveGeneratedFingerprintExistsParams struct {
+	WorkspaceID          sql.NullString `json:"workspace_id"`
+	GeneratedFingerprint string         `json:"generated_fingerprint"`
+}
+
+func (q *Queries) ActiveGeneratedFingerprintExists(ctx context.Context, arg ActiveGeneratedFingerprintExistsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, activeGeneratedFingerprintExists, arg.WorkspaceID, arg.GeneratedFingerprint)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const appendOutbox = `-- name: AppendOutbox :exec
 INSERT INTO outbox(scope_id, revision_watermark, created_at)
 VALUES (?, ?, ?)

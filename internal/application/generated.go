@@ -26,12 +26,20 @@ type GeneratedMutationRequest struct {
 	Content         string
 	Tags            []string
 	ResolutionState domain.ResolutionState
+	Fingerprint     string
+}
+
+type generatedFingerprintLookup interface {
+	ActiveGeneratedFingerprintExists(context.Context, string, string) (bool, error)
 }
 
 func (service *MemoryService) CreateGenerated(ctx context.Context, request GeneratedMutationRequest, source GeneratedSource) (MutationResult, error) {
 	results, err := service.CreateGeneratedBatch(ctx, []GeneratedMutationRequest{request}, source)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if len(results) == 0 {
+		return MutationResult{}, nil
 	}
 	return results[0], nil
 }
@@ -49,6 +57,7 @@ func (service *MemoryService) CreateGeneratedBatch(ctx context.Context, requests
 		revision domain.MemoryRevision
 	}
 	preparedRows := make([]prepared, len(requests))
+	lookup, hasLookup := service.Repository.(generatedFingerprintLookup)
 	for index, request := range requests {
 		if request.WorkspaceID == "" {
 			return nil, domain.NewError(domain.CodeValidation, "generated memory workspace is required", false)
@@ -78,13 +87,35 @@ func (service *MemoryService) CreateGeneratedBatch(ctx context.Context, requests
 		if err != nil {
 			return nil, err
 		}
-		fingerprint, err := service.generatedFingerprint(ctx, request.Kind, request.Title, request.Content, request.Tags, resolution)
+		fingerprint := request.Fingerprint
+		if fingerprint == "" {
+			fingerprint, err = service.generatedFingerprint(ctx, request.Kind, request.Title, request.Content, request.Tags, resolution)
+		}
 		if err != nil {
 			return nil, err
+		}
+		if hasLookup {
+			exists, lookupErr := lookup.ActiveGeneratedFingerprintExists(ctx, request.WorkspaceID, fingerprint)
+			if lookupErr != nil {
+				return nil, lookupErr
+			}
+			if exists {
+				continue
+			}
 		}
 		memory := domain.Memory{ID: memoryID, WorkspaceID: request.WorkspaceID, Kind: request.Kind, Trust: domain.TrustGenerated, Lifecycle: domain.LifecycleActive, GeneratedFingerprint: fingerprint, CreatedAt: now, UpdatedAt: now}
 		revision := domain.MemoryRevision{ID: revisionID, MemoryID: memoryID, Number: 1, Kind: request.Kind, Title: request.Title, Content: request.Content, Tags: append([]string(nil), request.Tags...), ResolutionState: resolution, Trust: domain.TrustGenerated, Lifecycle: domain.LifecycleActive, Provenance: provenance, CreatedAt: now}
 		preparedRows[index] = prepared{memory: memory, revision: revision}
+	}
+	filteredRows := preparedRows[:0]
+	for _, row := range preparedRows {
+		if row.memory.ID != "" {
+			filteredRows = append(filteredRows, row)
+		}
+	}
+	preparedRows = filteredRows
+	if len(preparedRows) == 0 {
+		return nil, nil
 	}
 	if err := service.Repository.WithTx(ctx, func(tx ports.MemoryTx) error {
 		for _, row := range preparedRows {

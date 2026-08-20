@@ -10,6 +10,7 @@ import (
 
 type Querier interface {
 	AcknowledgeProjection(ctx context.Context, arg AcknowledgeProjectionParams) error
+	ActiveGeneratedFingerprintExists(ctx context.Context, arg ActiveGeneratedFingerprintExistsParams) (int64, error)
 	AppendOutbox(ctx context.Context, arg AppendOutboxParams) error
 	ClaimCurationJob(ctx context.Context, arg ClaimCurationJobParams) (int64, error)
 	CountProjectionBlockers(ctx context.Context) (int64, error)

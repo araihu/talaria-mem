@@ -25,11 +25,11 @@ func (reason Reason) Valid() bool {
 }
 
 type Candidate struct {
-	Kind            domain.MemoryKind
-	Title           string
-	Content         string
-	Tags            []string
-	ResolutionState domain.ResolutionState
+	Kind            domain.MemoryKind      `json:"kind"`
+	Title           string                 `json:"title"`
+	Content         string                 `json:"content"`
+	Tags            []string               `json:"tags,omitempty"`
+	ResolutionState domain.ResolutionState `json:"resolution_state,omitempty"`
 }
 
 type CurationRequest struct {

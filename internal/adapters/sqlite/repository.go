@@ -20,6 +20,17 @@ func NewRepository(database *DB) *Repository {
 	return &Repository{database: database}
 }
 
+func (repository *Repository) ActiveGeneratedFingerprintExists(ctx context.Context, workspaceID, fingerprint string) (bool, error) {
+	if workspaceID == "" || fingerprint == "" {
+		return false, domain.NewError(domain.CodeValidation, "generated fingerprint identity is required", false)
+	}
+	exists, err := sqlc.New(repository.database.sql).ActiveGeneratedFingerprintExists(ctx, sqlc.ActiveGeneratedFingerprintExistsParams{WorkspaceID: sql.NullString{String: workspaceID, Valid: true}, GeneratedFingerprint: fingerprint})
+	if err != nil {
+		return false, domain.MapSQLiteError(err)
+	}
+	return exists == 1, nil
+}
+
 func (repository *Repository) WithTx(ctx context.Context, operation func(ports.MemoryTx) error) error {
 	return repository.database.withTx(ctx, func(tx *sql.Tx) error {
 		return operation(&repositoryTx{queries: sqlc.New(tx)})
