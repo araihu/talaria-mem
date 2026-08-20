@@ -69,6 +69,40 @@ func TestCodexInstallerRegistersPreservesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestCodexHooksInstallerRegistersAllCurationEvents(t *testing.T) {
+	root := secureCodexTestDirectory(t)
+	request := SetupRequest{HookPath: filepath.Join(root, "codex-hook.sh"), CodexHooksPath: filepath.Join(root, "hooks.json")}
+	installer := NewCodexHooksInstaller()
+	if err := installer.Install(context.Background(), request, strings.Repeat("a", 64)); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(request.CodexHooksPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Hooks map[string][]map[string]any `json:"hooks"`
+	}
+	if err := json.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []string{"SessionStart", "UserPromptSubmit", "PreCompact", "SessionEnd"} {
+		if len(document.Hooks[event]) != 1 {
+			t.Fatalf("event %s groups=%v", event, document.Hooks[event])
+		}
+	}
+	if err := installer.Remove(context.Background(), request, strings.Repeat("a", 64)); err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(request.CodexHooksPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), request.HookPath) {
+		t.Fatal("managed hook command remained after removal")
+	}
+}
+
 func TestCodexHooksInstallerRejectsChangedManagedEntryWithoutOverwrite(t *testing.T) {
 	root := secureCodexTestDirectory(t)
 	hookPath := filepath.Join(root, "session-start.sh")

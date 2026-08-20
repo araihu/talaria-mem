@@ -18,6 +18,16 @@ const (
 	codexHooksStatusMessage = "Loading Talaria-Mem context"
 )
 
+var managedCodexHookEvents = []struct {
+	name    string
+	matcher string
+}{
+	{name: "SessionStart", matcher: codexHooksMatcher},
+	{name: "UserPromptSubmit"},
+	{name: "PreCompact"},
+	{name: "SessionEnd"},
+}
+
 var (
 	ErrCodexHooksInvalid = errors.New("Codex hooks configuration is invalid")
 	ErrCodexHooksUnsafe  = errors.New("Codex hooks path is unsafe")
@@ -116,58 +126,60 @@ func (installer *CodexHooksInstaller) prepare(ctx context.Context, request Setup
 			return codexHooksPlan{}, err
 		}
 	}
-	groups, exists := hooks[codexHookName]
-	var rawGroups []json.RawMessage
-	if exists {
-		if err := json.Unmarshal(groups, &rawGroups); err != nil || rawGroups == nil {
-			return codexHooksPlan{}, ErrCodexHooksInvalid
+	changed := false
+	for _, event := range managedCodexHookEvents {
+		groups, exists := hooks[event.name]
+		var rawGroups []json.RawMessage
+		if exists {
+			if err := json.Unmarshal(groups, &rawGroups); err != nil || rawGroups == nil {
+				return codexHooksPlan{}, ErrCodexHooksInvalid
+			}
 		}
-	}
-
-	managedIndex := -1
-	for index, rawGroup := range rawGroups {
-		group, err := decodeCodexHookGroup(rawGroup)
-		if err != nil {
-			return codexHooksPlan{}, err
-		}
-		managed, err := exactManagedCodexHook(group, request.HookPath)
-		if err != nil {
-			return codexHooksPlan{}, err
-		}
-		if managed {
-			if managedIndex >= 0 {
+		managedIndex := -1
+		for index, rawGroup := range rawGroups {
+			group, err := decodeCodexHookGroup(rawGroup)
+			if err != nil {
+				return codexHooksPlan{}, err
+			}
+			managed, err := exactManagedCodexHookForEvent(group, request.HookPath, event.name, event.matcher)
+			if err != nil {
+				return codexHooksPlan{}, err
+			}
+			if managed {
+				if managedIndex >= 0 {
+					return codexHooksPlan{}, ErrSetupCollision
+				}
+				managedIndex = index
+				continue
+			}
+			collides, err := codexHookCommandCollision(group, request.HookPath)
+			if err != nil {
+				return codexHooksPlan{}, err
+			}
+			if collides {
 				return codexHooksPlan{}, ErrSetupCollision
 			}
-			managedIndex = index
+		}
+		if remove {
+			if managedIndex < 0 {
+				continue
+			}
+			rawGroups = append(rawGroups[:managedIndex], rawGroups[managedIndex+1:]...)
+			if len(rawGroups) == 0 {
+				delete(hooks, event.name)
+			} else if encoded, err := json.Marshal(rawGroups); err != nil {
+				return codexHooksPlan{}, ErrCodexHooksInvalid
+			} else {
+				hooks[event.name] = encoded
+			}
+			changed = true
+			plan.action = "unregister"
 			continue
 		}
-		collides, err := codexHookCommandCollision(group, request.HookPath)
-		if err != nil {
-			return codexHooksPlan{}, err
-		}
-		if collides {
-			return codexHooksPlan{}, ErrSetupCollision
-		}
-	}
-
-	if remove {
-		if managedIndex < 0 {
-			return plan, nil
-		}
-		rawGroups = append(rawGroups[:managedIndex], rawGroups[managedIndex+1:]...)
-		if len(rawGroups) == 0 {
-			delete(hooks, codexHookName)
-		} else if encoded, err := json.Marshal(rawGroups); err != nil {
-			return codexHooksPlan{}, ErrCodexHooksInvalid
-		} else {
-			hooks[codexHookName] = encoded
-		}
-		plan.action = "unregister"
-	} else {
 		if managedIndex >= 0 {
-			return plan, nil
+			continue
 		}
-		rawGroup, err := json.Marshal(managedCodexHookGroup(request.HookPath))
+		rawGroup, err := json.Marshal(managedCodexHookGroupForEvent(request.HookPath, event.name, event.matcher))
 		if err != nil {
 			return codexHooksPlan{}, ErrCodexHooksInvalid
 		}
@@ -176,8 +188,12 @@ func (installer *CodexHooksInstaller) prepare(ctx context.Context, request Setup
 		if err != nil {
 			return codexHooksPlan{}, ErrCodexHooksInvalid
 		}
-		hooks[codexHookName] = encoded
+		hooks[event.name] = encoded
+		changed = true
 		plan.action = "register"
+	}
+	if !changed {
+		return plan, nil
 	}
 
 	encodedHooks, err := json.Marshal(hooks)
@@ -286,12 +302,22 @@ func decodeCodexHookList(group map[string]json.RawMessage) ([]map[string]json.Ra
 }
 
 func exactManagedCodexHook(group map[string]json.RawMessage, command string) (bool, error) {
-	if len(group) != 2 {
+	return exactManagedCodexHookForEvent(group, command, codexHookName, codexHooksMatcher)
+}
+
+func exactManagedCodexHookForEvent(group map[string]json.RawMessage, command, event, matcher string) (bool, error) {
+	expectedFields := 1
+	if matcher != "" {
+		expectedFields = 2
+	}
+	if len(group) != expectedFields {
 		return false, nil
 	}
-	var matcher string
-	if err := json.Unmarshal(group["matcher"], &matcher); err != nil || matcher != codexHooksMatcher {
-		return false, nil
+	if matcher != "" {
+		var configuredMatcher string
+		if err := json.Unmarshal(group["matcher"], &configuredMatcher); err != nil || configuredMatcher != matcher {
+			return false, nil
+		}
 	}
 	hooks, err := decodeCodexHookList(group)
 	if err != nil {
@@ -332,14 +358,21 @@ func codexHookCommandCollision(group map[string]json.RawMessage, command string)
 }
 
 func managedCodexHookGroup(command string) map[string]any {
-	return map[string]any{
-		"matcher": codexHooksMatcher,
+	return managedCodexHookGroupForEvent(command, codexHookName, codexHooksMatcher)
+}
+
+func managedCodexHookGroupForEvent(command, event, matcher string) map[string]any {
+	group := map[string]any{
 		"hooks": []map[string]string{{
 			"type":          "command",
 			"command":       command,
 			"statusMessage": codexHooksStatusMessage,
 		}},
 	}
+	if matcher != "" {
+		group["matcher"] = matcher
+	}
+	return group
 }
 
 func validateCodexHooksPath(path string) error {

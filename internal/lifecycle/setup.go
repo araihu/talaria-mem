@@ -27,15 +27,19 @@ const (
 )
 
 type SetupRequest struct {
-	ConfigPath     string
-	HookPath       string
-	CodexHooksPath string
-	TokenPath      string
-	BinaryPath     string
-	Endpoint       string
-	DryRun         bool
-	Remove         bool
-	Fingerprint    string
+	// ConfigPath remains the compatibility name for TalariaConfigPath.
+	ConfigPath         string
+	TalariaConfigPath  string
+	CodexConfigPath    string
+	HookPath           string
+	CodexHooksPath     string
+	ProviderConfigPath string
+	TokenPath          string
+	BinaryPath         string
+	Endpoint           string
+	DryRun             bool
+	Remove             bool
+	Fingerprint        string
 }
 
 type SetupChange struct {
@@ -85,9 +89,13 @@ func Fingerprint(request SetupRequest) (string, error) {
 	if err := validateSetupRequest(request); err != nil {
 		return "", err
 	}
+	talariaConfigPath := request.TalariaConfigPath
+	if talariaConfigPath == "" {
+		talariaConfigPath = request.ConfigPath
+	}
 	digest := sha256.Sum256([]byte(strings.Join([]string{
-		"talaria-mem/setup/v1", request.ConfigPath, request.HookPath,
-		request.TokenPath, request.BinaryPath, request.Endpoint,
+		"talaria-mem/setup/v2", talariaConfigPath, request.CodexConfigPath, request.HookPath,
+		request.CodexHooksPath, request.ProviderConfigPath, request.TokenPath, request.BinaryPath, request.Endpoint,
 	}, "\x00")))
 	return hex.EncodeToString(digest[:]), nil
 }
@@ -115,7 +123,11 @@ func (service *SetupService) Plan(ctx context.Context, request SetupRequest) (Se
 		}
 		fingerprint = request.Fingerprint
 	}
-	current, exists, err := readConfig(request.ConfigPath)
+	talariaConfigPath := request.TalariaConfigPath
+	if talariaConfigPath == "" {
+		talariaConfigPath = request.ConfigPath
+	}
+	current, exists, err := readConfig(talariaConfigPath)
 	if err != nil {
 		return SetupResult{}, err
 	}
@@ -126,7 +138,7 @@ func (service *SetupService) Plan(ctx context.Context, request SetupRequest) (Se
 			return SetupResult{}, ErrSetupReceipt
 		}
 		if markerFingerprint != "" {
-			result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "remove", Fingerprint: markerFingerprint})
+			result.Changes = append(result.Changes, SetupChange{Path: talariaConfigPath, Action: "remove", Fingerprint: markerFingerprint})
 			if !exists {
 				result.Changes = nil
 			}
@@ -140,10 +152,10 @@ func (service *SetupService) Plan(ctx context.Context, request SetupRequest) (Se
 			// The same installation is idempotent. A changed request necessarily
 			// changes the fingerprint and was rejected above.
 			if string(current[markerStart:markerEnd]) != marker {
-				result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "install", Fingerprint: fingerprint})
+				result.Changes = append(result.Changes, SetupChange{Path: talariaConfigPath, Action: "install", Fingerprint: fingerprint})
 			}
 		} else {
-			result.Changes = append(result.Changes, SetupChange{Path: request.ConfigPath, Action: "install", Fingerprint: fingerprint})
+			result.Changes = append(result.Changes, SetupChange{Path: talariaConfigPath, Action: "install", Fingerprint: fingerprint})
 		}
 	}
 	if planner, ok := service.Installer.(ServiceInstallerPlanner); ok {
@@ -180,22 +192,26 @@ func (service *SetupService) Apply(ctx context.Context, request SetupRequest) (S
 		}
 		return plan, nil
 	}
-	configChangeIndex := setupConfigChangeIndex(plan.Changes, request.ConfigPath)
+	talariaConfigPath := request.TalariaConfigPath
+	if talariaConfigPath == "" {
+		talariaConfigPath = request.ConfigPath
+	}
+	configChangeIndex := setupConfigChangeIndex(plan.Changes, talariaConfigPath)
 	configChanged := configChangeIndex >= 0
 	var current []byte
 	var exists bool
 	var oldFingerprint *filesystemFingerprint
 	var backupPath string
 	if configChanged {
-		current, exists, err = readConfig(request.ConfigPath)
+		current, exists, err = readConfig(talariaConfigPath)
 		if err != nil {
 			return SetupResult{}, err
 		}
-		oldFingerprint, err = configFingerprint(request.ConfigPath, exists)
+		oldFingerprint, err = configFingerprint(talariaConfigPath, exists)
 		if err != nil {
 			return SetupResult{}, err
 		}
-		backupPath = request.ConfigPath + ".talaria-mem-" + plan.Fingerprint[:12] + ".bak"
+		backupPath = talariaConfigPath + ".talaria-mem-" + plan.Fingerprint[:12] + ".bak"
 		if exists {
 			if err := writeNewManagedFile(ctx, backupPath, current); err != nil && !errors.Is(err, filesystem.ErrTargetExists) {
 				return SetupResult{}, err
@@ -219,7 +235,7 @@ func (service *SetupService) Apply(ctx context.Context, request SetupRequest) (S
 			}
 			updated = append(updated, marker...)
 		}
-		if err := replaceManagedFile(ctx, request.ConfigPath, updated, oldFingerprint, exists); err != nil {
+		if err := replaceManagedFile(ctx, talariaConfigPath, updated, oldFingerprint, exists); err != nil {
 			return SetupResult{}, err
 		}
 	}
@@ -232,7 +248,7 @@ func (service *SetupService) Apply(ctx context.Context, request SetupRequest) (S
 		}
 		if installerErr != nil {
 			if configChanged {
-				_ = rollbackManagedFile(ctx, request.ConfigPath, current, exists)
+				_ = rollbackManagedFile(ctx, talariaConfigPath, current, exists)
 			}
 			return SetupResult{}, installerErr
 		}
@@ -273,7 +289,11 @@ func contextError(ctx context.Context) error {
 }
 
 func validateSetupRequest(request SetupRequest) error {
-	if request.ConfigPath == "" || !filepath.IsAbs(request.ConfigPath) || filepath.Clean(request.ConfigPath) != request.ConfigPath {
+	talariaConfigPath := request.TalariaConfigPath
+	if talariaConfigPath == "" {
+		talariaConfigPath = request.ConfigPath
+	}
+	if talariaConfigPath == "" || !filepath.IsAbs(talariaConfigPath) || filepath.Clean(talariaConfigPath) != talariaConfigPath {
 		return errors.New("setup config path must be absolute and canonical")
 	}
 	if request.HookPath == "" || !filepath.IsAbs(request.HookPath) || filepath.Clean(request.HookPath) != request.HookPath {
@@ -288,10 +308,15 @@ func validateSetupRequest(request SetupRequest) error {
 	if err := validateLoopbackEndpoint(request.Endpoint); err != nil {
 		return err
 	}
-	if err := validateManagedParent(request.ConfigPath); err != nil {
+	if err := validateManagedParent(talariaConfigPath); err != nil {
 		return err
 	}
-	return validateManagedParent(request.HookPath)
+	if request.ProviderConfigPath != "" {
+		if err := validateManagedParent(request.ProviderConfigPath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateLoopbackEndpoint(endpoint string) error {
@@ -362,13 +387,25 @@ func setupMarker(request SetupRequest, fingerprint string) string {
 	return strings.Join([]string{
 		setupBegin + " fingerprint=" + fingerprint,
 		"[talaria_mem]",
+		"talaria_config_path = " + strconv.Quote(firstNonEmpty(request.TalariaConfigPath, request.ConfigPath)),
+		"codex_config_path = " + strconv.Quote(request.CodexConfigPath),
 		"session_start_hook = " + strconv.Quote(request.HookPath),
+		"provider_config_path = " + strconv.Quote(request.ProviderConfigPath),
 		"endpoint = " + strconv.Quote("http://"+request.Endpoint),
 		"token_file = " + strconv.Quote(request.TokenPath),
 		"binary = " + strconv.Quote(request.BinaryPath),
 		setupEnd,
 		"",
 	}, "\n")
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func configFingerprint(path string, exists bool) (*filesystemFingerprint, error) {

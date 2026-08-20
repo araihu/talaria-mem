@@ -53,7 +53,7 @@ func daemonCobraCommand(context cli.CobraContext) *cobra.Command {
 func setupCobraCommand(context cli.CobraContext) *cobra.Command {
 	command := &cobra.Command{Use: "setup", Short: "install local integrations", Args: cobra.NoArgs}
 	codex := &cobra.Command{Use: "codex", Short: "install the Codex SessionStart hook", Args: cobra.NoArgs}
-	for _, name := range []string{"config", "hook", "codex-hooks", "token", "binary", "endpoint", "fingerprint"} {
+	for _, name := range []string{"config", "talaria-config", "codex-config", "hook", "codex-hooks", "provider-config", "token", "binary", "endpoint", "fingerprint"} {
 		codex.Flags().String(name, "", "")
 	}
 	for _, name := range []string{"dry-run", "apply", "remove"} {
@@ -61,7 +61,7 @@ func setupCobraCommand(context cli.CobraContext) *cobra.Command {
 	}
 	codex.RunE = func(command *cobra.Command, _ []string) error {
 		args := []string{"codex"}
-		for _, name := range []string{"config", "hook", "codex-hooks", "token", "binary", "endpoint", "fingerprint"} {
+		for _, name := range []string{"config", "talaria-config", "codex-config", "hook", "codex-hooks", "provider-config", "token", "binary", "endpoint", "fingerprint"} {
 			args = appendStringFlag(args, command, name)
 		}
 		for _, name := range []string{"dry-run", "apply", "remove"} {

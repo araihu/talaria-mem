@@ -73,7 +73,7 @@ func (commands *SetupCommands) Run(ctx context.Context, args []string, output cl
 			apply = true
 		case "--remove":
 			request.Remove = true
-		case "--config", "--hook", "--codex-hooks", "--token", "--binary", "--endpoint", "--fingerprint":
+		case "--config", "--talaria-config", "--codex-config", "--hook", "--codex-hooks", "--provider-config", "--token", "--binary", "--endpoint", "--fingerprint":
 			if index+1 >= len(args) {
 				return &cli.UsageError{Message: "setup option requires a value"}
 			}
@@ -82,10 +82,16 @@ func (commands *SetupCommands) Run(ctx context.Context, args []string, output cl
 			switch args[index-1] {
 			case "--config":
 				request.ConfigPath = value
+			case "--talaria-config":
+				request.TalariaConfigPath = value
+			case "--codex-config":
+				request.CodexConfigPath = value
 			case "--hook":
 				request.HookPath = value
 			case "--codex-hooks":
 				request.CodexHooksPath = value
+			case "--provider-config":
+				request.ProviderConfigPath = value
 			case "--token":
 				request.TokenPath = value
 			case "--binary":
