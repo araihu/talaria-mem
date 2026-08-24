@@ -83,7 +83,7 @@ finished release. Use the table below as the threat-model summary:
 
 ## Prerequisites
 
-- Go 1.26 or newer.
+- Go 1.27.0 or newer.
 - `curl` if the SessionStart hook will be used.
 - macOS or Linux for the documented local journey. Other platforms are not
   verified yet.
