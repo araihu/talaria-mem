@@ -19,7 +19,7 @@ checkout, not release evidence or a supported host-service installer.
 
 ## Prerequisites
 
-- Go 1.26 or newer.
+- Go 1.27.0 or newer.
 - macOS or Linux. Windows is not verified.
 - `curl` for the Codex SessionStart hook.
 - A Codex CLI version with hooks enabled. Check with `codex features list`.
