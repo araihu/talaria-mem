@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/betterleaks/betterleaks v1.7.4
 	github.com/caarlos0/env/v11 v11.4.1
-	github.com/getkin/kin-openapi v0.144.0
+	github.com/getkin/kin-openapi v0.149.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
@@ -74,7 +74,7 @@ require (
 	github.com/rrethy/ahocorasick v1.0.0 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed // indirect
