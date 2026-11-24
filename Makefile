@@ -1,6 +1,5 @@
 GO ?= go
 SQLC_VERSION := v1.29.0
-VACUUM_VERSION := v0.30.0
 BUILD_DIR ?= $(CURDIR)/.build
 OPENAPI_SOURCE := api/openapi/talaria.yaml
 OPENAPI_OVERLAY := api/openapi/vacuum.yaml
@@ -31,15 +30,10 @@ generate: sqlc-generate
 	$(GO) generate ./...
 
 openapi-lint:
-	@if test -f "$(OPENAPI_SOURCE)"; then \
-		vacuum_bin="$$(command -v vacuum 2>/dev/null || true)"; \
-		if test -z "$$vacuum_bin"; then \
-			$(GO) install github.com/daveshanley/vacuum@$(VACUUM_VERSION); \
-			vacuum_bin="$$( $(GO) env GOPATH )/bin/vacuum"; \
-		fi; \
+	@set -e; if test -f "$(OPENAPI_SOURCE)"; then \
 		mkdir -p "$(BUILD_DIR)"; \
-		"$$vacuum_bin" lint "$(OPENAPI_SOURCE)" --config "$(OPENAPI_OVERLAY)"; \
-		"$$vacuum_bin" bundle "$(OPENAPI_SOURCE)" "$(BUILD_DIR)/talaria.openapi.yaml"; \
+		scripts/vacuum lint "$(OPENAPI_SOURCE)" --config "$(OPENAPI_OVERLAY)"; \
+		scripts/vacuum bundle "$(OPENAPI_SOURCE)" "$(BUILD_DIR)/talaria.openapi.yaml"; \
 	fi
 
 codex-schema-check:
